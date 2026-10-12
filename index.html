@@ -778,9 +778,10 @@
   /* ---------- Finger-colour halo on chord / lesson markers (labels stay fully readable) ---------- */
   .marker.has-finger{outline:3px solid var(--fing); outline-offset:1px;}
 
-  /* ---------- Immersive Focus View (viewport-driven) ---------- */
-  /* The fretboard canvas + SVG hand fill the whole screen. Every instructional / settings panel is
-     moved (not deleted) into the slide-out Lesson Settings HUD while this mode is active. */
+  /* ---------- Immersive Focus View: true-proportion scroll / zoom canvas ---------- */
+  /* The neck is NEVER stretched to the screen. It keeps its slender long-scale proportions, is drawn at a
+     comfortable size, and the board area scrolls (touch-drag, wheel, mouse-drag) and zooms (slider,
+     pinch, Ctrl+wheel). The HUD is a CSS grid: banner / board / transport deck / utility deck. */
   body.immersive-mode{overflow:hidden;}
   body.immersive-mode .top-bar,
   body.immersive-mode .dashboard,
@@ -792,11 +793,7 @@
   body.immersive-mode .fit-toggle{
     display:none !important;
   }
-  body.immersive-mode .app-shell{
-    max-width:none;
-    padding:0;
-    margin:0;
-  }
+  body.immersive-mode .app-shell{max-width:none; padding:0; margin:0;}
   body.immersive-mode #immersiveContainer,
   #immersiveContainer:fullscreen{
     position:fixed;
@@ -804,7 +801,9 @@
     z-index:300;
     width:100vw;
     height:100vh;
-    padding:0;
+    height:100dvh;
+    box-sizing:border-box;
+    padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);
     margin:0;
     overflow:hidden;
     background:
@@ -812,53 +811,78 @@
       radial-gradient(ellipse at bottom right, #0f1420 0%, transparent 55%),
       var(--bg-deep);
   }
+  body.immersive-mode #immersiveContainer{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    grid-template-rows:auto minmax(0,1fr) auto auto;
+    grid-template-areas:
+      "banner banner"
+      "board  board"
+      "mini   mini"
+      "gear   tools";
+    row-gap:0; column-gap:8px;
+  }
   body.immersive-mode .fretboard-wrapper,
   body.immersive-mode .fretboard-wrapper.vertical-mode{
-    position:absolute;
-    left:0; right:0;
-    top:30px;                 /* clears the objective banner */
-    bottom:54px;              /* clears the corner buttons */
-    margin:0;
-    padding:0;
-    border:none;
-    border-radius:0;
+    grid-area:board;
+    align-self:stretch;
+    height:auto;
+    position:relative;
+    min-width:0; min-height:0;
+    margin:0; padding:0;
+    border:none; border-radius:0;
     background:transparent;
     max-height:none;
-    overflow:hidden;
-    display:flex;
-    align-items:center;
-    justify-content:center;
+    display:flex;                       /* inner uses margin:auto => centred when small, scrollable when large */
+    overflow:auto;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    touch-action:pan-x pan-y;
+    scrollbar-width:thin;
+    scrollbar-color:rgba(138,124,255,0.55) transparent;
     transition:none;
   }
-  body.immersive-mode .fretboard-inner{flex:0 0 auto;}
+  body.immersive-mode .fretboard-wrapper.panning{cursor:grabbing; user-select:none;}
+  body.immersive-mode .fretboard-wrapper::-webkit-scrollbar{width:6px; height:6px;}
+  body.immersive-mode .fretboard-wrapper::-webkit-scrollbar-thumb{background:rgba(138,124,255,0.5); border-radius:3px;}
+  body.immersive-mode .fretboard-inner{flex:0 0 auto; margin:auto;}
 
-  /* Floating view toolbar (Exit + Hand Guide) in the bottom-right corner */
+  /* Utility deck: Exit + Hand Guide */
   body.immersive-mode .view-toolbar{
-    position:absolute;
-    right:12px; bottom:9px;
-    z-index:430;
-    margin:0;
-    padding:6px 10px;
-    gap:10px;
+    grid-area:tools;
+    justify-self:end;
+    position:static;
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end;
+    gap:6px 8px;
+    margin:6px 8px 8px 0;
+    padding:5px 8px;
+    min-height:44px;
+    box-sizing:border-box;
     background:rgba(11,15,24,0.55);
     border:1px solid rgba(255,255,255,0.12);
     border-radius:12px;
     backdrop-filter:blur(6px);
     -webkit-backdrop-filter:blur(6px);
   }
-  body.immersive-mode .view-toolbar .btn{padding:7px 12px; font-size:12px;}
+  body.immersive-mode .view-toolbar .btn{padding:8px 12px; font-size:12px; min-height:36px; white-space:nowrap;}
+  body.immersive-mode .view-toolbar .hand-toggle-wrap{gap:6px; font-size:11px; white-space:nowrap;}
+  body.immersive-mode .view-toolbar .hand-toggle-wrap .toggle-row button{padding:8px 10px; min-height:36px; font-size:11px;}
+  .lbl-short{display:none;}
+  body.immersive-mode .lbl-long{display:none;}
+  body.immersive-mode .lbl-short{display:inline;}
+  .hg-short{display:none;}
 
-  /* ---------- Sliding HUD: top objective banner, corner gear, mini transport, side panel ---------- */
-  .hud-banner,.hud-gear,.hud-mini,.hud-panel{display:none;}
+  /* ---------- Sliding HUD: top objective banner, corner gear, transport deck, zoom rail, side panel ---------- */
+  .hud-banner,.hud-gear,.hud-mini,.hud-panel,.hud-zoom{display:none;}
 
   body.immersive-mode .hud-banner{
+    grid-area:banner;
     display:block;
-    position:absolute;
-    top:0; left:0; right:0;
+    position:static;
     z-index:420;
     height:30px;
     line-height:30px;
-    padding:0 90px;
+    padding:0 14px;
     text-align:center;
     font-size:13px;
     font-weight:700;
@@ -874,15 +898,20 @@
   .hud-banner b{color:var(--accent-brass);}
 
   body.immersive-mode .hud-gear{
+    grid-area:gear;
+    justify-self:start;
     display:flex;
     align-items:center;
-    gap:7px;
-    position:absolute;
-    left:12px; bottom:9px;
+    gap:6px;
+    position:static;
     z-index:430;
-    padding:9px 14px;
+    margin:6px 0 8px 8px;
+    padding:8px 14px;
+    min-height:44px;
+    box-sizing:border-box;
     font-size:13px;
     font-weight:700;
+    white-space:nowrap;
     color:var(--text-main);
     background:rgba(24,34,52,0.6);
     border:1px solid var(--accent-violet);
@@ -898,34 +927,100 @@
     box-shadow:0 0 16px rgba(138,124,255,0.45);
   }
 
+  /* Transport deck: one clean row; buttons share the width equally and wrap rather than overlap */
   body.immersive-mode .hud-mini{
+    grid-area:mini;
     display:flex;
-    gap:10px;
-    position:absolute;
-    left:50%; bottom:9px;
-    transform:translateX(-50%);
+    justify-content:center;
+    gap:8px;
+    position:static;
+    transform:none;
     z-index:430;
+    padding:6px 8px 0;
+    box-sizing:border-box;
+    min-width:0;
   }
-  .hud-mini-group{display:none; gap:6px; align-items:center;
-    padding:5px 8px; background:rgba(11,15,24,0.55);
+  .hud-mini-group{display:none; flex-wrap:wrap; gap:6px; align-items:stretch; justify-content:center;
+    flex:1 1 auto; max-width:560px; min-width:0; box-sizing:border-box;
+    padding:5px 6px; background:rgba(11,15,24,0.55);
     border:1px solid rgba(255,255,255,0.12); border-radius:12px;
     backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);}
   body[data-wsmode="learn"] .hud-mini-group[data-for="learn"],
   body[data-wsmode="training"] .hud-mini-group[data-for="training"],
   body[data-wsmode="sandbox"] .hud-mini-group[data-for="sandbox"]{display:flex;}
   .hud-mini-group button{
+    flex:1 1 72px;
+    min-width:0;
+    min-height:38px;
     border:1px solid var(--line);
     background:rgba(36,47,71,0.8);
     color:var(--text-main);
     border-radius:8px;
-    padding:7px 12px;
+    padding:8px 8px;
     font-size:12px;
     font-weight:700;
+    white-space:nowrap;
     cursor:pointer;
   }
   .hud-mini-group button:hover{filter:brightness(1.2);}
   .hud-mini-group button.primary{background:linear-gradient(180deg,var(--accent-cyan),#1fa8a8); color:#04211f; border-color:transparent;}
   .hud-mini-group button.submit{background:linear-gradient(180deg,var(--accent-brass),#b6862c); color:#2a1c02; border-color:transparent;}
+  .hud-mini-group button.danger{background:linear-gradient(180deg,#5a2634,#3a1620); color:#ffd7de; border-color:#7a3040;}
+
+  /* Ultra-minimal zoom rail (right edge, vertically centred, translucent) */
+  body.immersive-mode .hud-zoom{
+    --zl:min(26vh,150px);
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    position:absolute;
+    right:calc(6px + env(safe-area-inset-right,0px));
+    top:50%;
+    transform:translateY(-50%);
+    z-index:425;
+    padding:6px 3px;
+    width:34px; box-sizing:border-box;
+    background:rgba(11,15,24,0.5);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:17px;
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+    touch-action:none;
+  }
+  .hud-zoom button{
+    width:28px; height:28px; padding:0;
+    border:1px solid var(--line); border-radius:50%;
+    background:rgba(36,47,71,0.85); color:var(--text-main);
+    font-size:16px; font-weight:800; line-height:1; cursor:pointer;
+  }
+  .hud-zoom button:hover{filter:brightness(1.25);}
+  .hud-zoom .zoom-fit{border-radius:8px; width:28px; height:22px; font-size:9.5px; letter-spacing:0.2px;}
+  .hud-zoom .zoom-track{position:relative; width:28px; height:var(--zl);}
+  .hud-zoom .zoom-track input{
+    position:absolute; left:50%; top:50%;
+    width:var(--zl); height:24px; margin:0;
+    transform:translate(-50%,-50%) rotate(-90deg);
+    accent-color:var(--accent-violet);
+    cursor:pointer;
+  }
+  .hud-zoom .zoom-val{font-size:9.5px; font-weight:700; color:var(--text-dim); line-height:1;}
+
+  /* Roomy single-row dock on wide screens and on short landscape phones */
+  @media (min-width:861px), (orientation:landscape) and (max-height:480px) and (min-width:700px){
+    body.immersive-mode #immersiveContainer{
+      grid-template-columns:auto minmax(0,1fr) auto;
+      grid-template-rows:auto minmax(0,1fr) auto;
+      grid-template-areas:
+        "banner banner banner"
+        "board  board  board"
+        "gear   mini   tools";
+      align-items:end;
+    }
+    body.immersive-mode .hud-mini{padding:6px 0 8px;}
+    body.immersive-mode .hud-banner{height:26px; line-height:26px;}
+  }
+  @media (max-width:430px){
+    body.immersive-mode .view-toolbar .hand-toggle-wrap{font-size:0;}   /* hides the long label text */
+    body.immersive-mode .view-toolbar .hg-short{display:inline; font-size:11px; font-weight:800;}
+  }
 
   body.immersive-mode .hud-panel{
     display:flex;
@@ -1275,7 +1370,7 @@
     <div class="view-toolbar" id="viewToolbar">
       <button class="btn btn-immersive" id="immersiveBtn">Fullscreen Focus View</button>
       <label class="fit-toggle"><input type="checkbox" id="fitToggle"> Fit whole bass to screen</label>
-      <span class="hand-toggle-wrap">Hand Graphic Guide:
+      <span class="hand-toggle-wrap"><span class="hg-long">Hand Graphic Guide:</span><span class="hg-short">Hand</span>
         <span class="toggle-row hand-toggle" id="handToggleBar" role="group" aria-label="Hand Graphic Guide (toolbar)">
           <button data-hand="show" class="active">SHOW</button>
           <button data-hand="hide">HIDE</button>
@@ -1367,12 +1462,13 @@
 
     <!-- ===== Sliding HUD overlay (Lesson Settings) ===== -->
     <div class="hud-banner" id="hudBanner">Active: &mdash;</div>
-    <button class="hud-gear" id="hudGearBtn" aria-expanded="false" aria-controls="hudPanel">Lesson Settings &#9881;&#65039;</button>
+    <button class="hud-gear" id="hudGearBtn" aria-expanded="false" aria-controls="hudPanel">&#9881;&#65039; <span class="lbl-long">Lesson Settings</span><span class="lbl-short">Settings</span></button>
     <div class="hud-mini" id="hudMini">
       <div class="hud-mini-group" data-for="learn">
         <button id="hudPrevBtn" title="Previous step">&#9664; Step</button>
         <button id="hudPlayBtn" class="primary">Play</button>
         <button id="hudNextBtn" title="Next step">Step &#9654;</button>
+        <button id="hudRestartBtn" class="danger" title="Restart lesson">&#8634; Restart</button>
       </div>
       <div class="hud-mini-group" data-for="training">
         <button id="hudNewBtn">New</button>
@@ -1382,6 +1478,13 @@
       <div class="hud-mini-group" data-for="sandbox">
         <button id="hudGroovePlayBtn" class="primary">Play</button>
       </div>
+    </div>
+    <div class="hud-zoom" id="hudZoom" role="group" aria-label="Fretboard zoom">
+      <button id="zoomInBtn" aria-label="Zoom in" title="Zoom in">+</button>
+      <div class="zoom-track"><input type="range" id="zoomSlider" min="0.25" max="4" step="0.05" value="1" aria-label="Zoom level"></div>
+      <button id="zoomOutBtn" aria-label="Zoom out" title="Zoom out">&minus;</button>
+      <span class="zoom-val" id="zoomVal">1.0x</span>
+      <button id="zoomFitBtn" class="zoom-fit" title="Fit whole bass in view">Fit</button>
     </div>
     <aside class="hud-panel" id="hudPanel" aria-hidden="true">
       <div class="hud-head">
@@ -2413,6 +2516,7 @@
     updateHudBanner();
     updateHandOverlay();
     fitBoard();
+    followFocus();
   }
 
   function buildMarkerEl(key, sIdx, fret, sDef){
@@ -3068,49 +3172,24 @@
     return changed;
   }
 
-  // Viewport-driven layout: the canvas aspect ratio is bent toward the display's aspect ratio.
-  // Along-limited (the usual case, in both horizontal and upright mode): strings spread apart.
-  // Cross-limited: frets separate. Markers / labels / finger indicators grow with the result.
-  function computeImmersiveLayout(wrap){
-    const cs = window.getComputedStyle(wrap);
-    const availW = wrap.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
-    const availH = wrap.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
-    if(availW <= 0 || availH <= 0) return null;
-    const n = activeStrings().length;
-    const vertical = state.orientation === "vertical";
-    const fixedAlong = LABEL_GUTTER + NUT_WIDTH + BODY_LEN + 12;
-    const fixedCross = TOP_PADDING + BOTTOM_PADDING + 2*CROSS_PAD;
-    const Va = vertical ? availH : availW;
-    const Vc = vertical ? availW : availH;
-    const sA = Va / (fixedAlong + FRET_COUNT*FRET_WIDTH_BASE);
-    const sC = Vc / (fixedCross + n*STRING_ROW_BASE);
-    let fw = FRET_WIDTH_BASE, row = STRING_ROW_BASE;
-    if(sA <= sC){
-      row = (Vc / sA - fixedCross) / n;
-    } else {
-      fw = (Va / sC - fixedAlong) / FRET_COUNT;
-    }
-    fw = Math.round(clampNum(fw, FRET_WIDTH_BASE, FRET_WIDTH_BASE*MAX_FW_K));
-    row = Math.round(clampNum(row, STRING_ROW_BASE, STRING_ROW_BASE*MAX_ROW_K));
-    const along = fixedAlong + FRET_COUNT*fw;
-    const cross = fixedCross + n*row;
-    const sReal = Math.min(Va / along, Vc / cross);
-    const uiK = Math.round(clampNum(Math.max(Math.sqrt((fw/FRET_WIDTH_BASE)*(row/STRING_ROW_BASE)), 0.85/sReal), 1, 2.4)*100)/100;
-    const marker = Math.round(Math.max(26, Math.min(Math.max(26*uiK*1.15, 30/sReal), fw*0.85, row*0.8)));
-    return { fw:fw, row:row, uiK:uiK, marker:marker };
-  }
+  // Strict-proportion layout: the neck is never stretched to the screen. Immersive view keeps the exact
+  // base long-scale geometry (slender neck) and relies on uniform scale + scrolling instead.
+  let zoomK = 1;              // user magnification on top of the comfortable base scale
+  let lastBase = 1, lastFitAll = 1;
+  const IMMERSIVE_MAX_BASE = 1.6;
+  const ZOOM_MIN = 0.25, ZOOM_MAX = 4;
 
   function applyFitScale(inner, wrap, scale, padY, ih, immersive, iw){
     const supportsZoom = typeof CSS !== "undefined" && CSS.supports && CSS.supports("zoom", "1.5");
     if(supportsZoom){
       inner.style.zoom = String(scale);
     } else if(immersive){
-      // centred inside the viewport-filling wrapper
-      inner.style.position = "absolute";
+      // no CSS zoom: transform + compensating margins keep the scroll extent correct
       inner.style.transformOrigin = "top left";
       inner.style.transform = "scale(" + scale + ")";
-      inner.style.left = Math.max(0, (wrap.clientWidth - iw*scale)/2) + "px";
-      inner.style.top = Math.max(0, (wrap.clientHeight - ih*scale)/2) + "px";
+      inner.style.margin = "0";
+      inner.style.marginRight = (iw*(scale-1)) + "px";
+      inner.style.marginBottom = (ih*(scale-1)) + "px";
     } else {
       inner.style.transformOrigin = "top left";
       inner.style.transform = "scale(" + scale + ")";
@@ -3126,17 +3205,14 @@
     const fit = immersive || state.fitView;
 
     // 1) layout engine: stretch / reset the neck geometry, then re-render once if it changed
-    if(immersive){
-      const lay = computeImmersiveLayout(wrap);
-      if(lay && setLayout(lay.fw, lay.row, lay.uiK, lay.marker)){ renderFretboard(); return; }
-    } else if(setLayout(FRET_WIDTH_BASE, STRING_ROW_BASE, 1, 26)){
+    if(setLayout(FRET_WIDTH_BASE, STRING_ROW_BASE, 1, 26)){
       renderFretboard();
       return;
     }
 
     // 2) uniform scale so the canvas fills the screen
     const iw = parseFloat(inner.style.width) || 0, ih = parseFloat(inner.style.height) || 0;
-    const memo = [fit, immersive, window.innerWidth, window.innerHeight, state.orientation, state.numStrings, state.workstationMode, state.learn.lessonId, iw, ih, FRET_WIDTH, STRING_ROW_HEIGHT].join("|");
+    const memo = [fit, immersive, window.innerWidth, window.innerHeight, state.orientation, state.numStrings, state.workstationMode, state.learn.lessonId, iw, ih, FRET_WIDTH, STRING_ROW_HEIGHT, zoomK, wrap.clientWidth, wrap.clientHeight].join("|");
     if(!force && memo === fitMemo) return;
     fitMemo = memo;
     inner.style.zoom = "";
@@ -3145,6 +3221,9 @@
     inner.style.position = "";
     inner.style.left = "";
     inner.style.top = "";
+    inner.style.margin = "";
+    inner.style.marginRight = "";
+    inner.style.marginBottom = "";
     wrap.style.height = "";
     wrap.style.overflow = "";
     fitScale = 1;
@@ -3158,8 +3237,12 @@
     if(immersive){
       const availHi = wrap.clientHeight - padY;
       if(availHi <= 0) return;
-      scale = Math.min(availW / iw, availHi / ih) * IMMERSIVE_FILL;
-      scale = Math.max(0.05, Math.min(3, scale));
+      const vert = state.orientation === "vertical";
+      const crossPx = vert ? iw : ih, alongPx = vert ? ih : iw;
+      const availC = vert ? availW : availHi, availA = vert ? availHi : availW;
+      lastBase = clampNum(availC / crossPx, 0.45, IMMERSIVE_MAX_BASE);
+      lastFitAll = Math.min(availA / alongPx, availC / crossPx);
+      scale = clampNum(lastBase * zoomK, 0.1, 8);
     } else {
       const top = wrap.getBoundingClientRect().top;
       const availH = Math.max(160, window.innerHeight - Math.max(top, 0) - padY - 20);
@@ -5285,6 +5368,7 @@
     proxy("hudPrevBtn", "learnPrevBtn");
     proxy("hudPlayBtn", "learnPlayBtn");
     proxy("hudNextBtn", "learnNextBtn");
+    proxy("hudRestartBtn", "learnRestartBtn");
     proxy("hudNewBtn", "newChallengeBtn");
     proxy("hudSubmitBtn", "submitBtn", openHud);       // feedback lives in the HUD, so show it
     proxy("hudClearBtn", "clearCanvasBtn");
@@ -5325,7 +5409,9 @@
   // sidebar and dashboard, then the fit engine scales the neck, body and lesson graphics to
   // fill the whole screen.
   function setImmersiveLabel(on){
-    document.getElementById("immersiveBtn").textContent = on ? "Exit Fullscreen Focus" : "Fullscreen Focus View";
+    const b = document.getElementById("immersiveBtn");
+    if(on) b.innerHTML = '<span class="lbl-long">Exit Fullscreen Focus</span><span class="lbl-short">&#10005; Exit</span>';
+    else b.textContent = "Fullscreen Focus View";
   }
   function toggleImmersive(){
     if(document.body.classList.contains("immersive-mode")){
@@ -5349,6 +5435,8 @@
       }catch(err){}
     }
     fitBoard(true);
+    resetPanToNut();
+    updateZoomUi();
   }
   function exitImmersive(){
     closeHud();
@@ -5365,6 +5453,100 @@
       }
     }
     fitBoard(true);
+  }
+
+  /* ---------- Zoom & pan engine (Fullscreen Focus View) ---------- */
+  let lastUserInput = 0;
+  function updateZoomUi(){
+    const sl = document.getElementById("zoomSlider"), v = document.getElementById("zoomVal");
+    if(sl && parseFloat(sl.value) !== zoomK) sl.value = zoomK;
+    if(v) v.textContent = (Math.round(zoomK*100)/100).toFixed(2).replace(/0$/, "") + "x";
+  }
+  function resetPanToNut(){
+    const wrap = document.getElementById("fretboardWrapper");
+    if(!wrap) return;
+    wrap.scrollLeft = 0; wrap.scrollTop = 0;
+  }
+  function setZoom(z){
+    z = clampNum(z, ZOOM_MIN, ZOOM_MAX);
+    const wrap = document.getElementById("fretboardWrapper");
+    const immersive = document.body.classList.contains("immersive-mode");
+    // keep the point at the centre of the viewport fixed while magnifying
+    const cx = (wrap.scrollLeft + wrap.clientWidth/2) / (wrap.scrollWidth || 1);
+    const cy = (wrap.scrollTop + wrap.clientHeight/2) / (wrap.scrollHeight || 1);
+    zoomK = z;
+    updateZoomUi();
+    if(!immersive) return;
+    fitBoard(true);
+    wrap.scrollLeft = cx*wrap.scrollWidth - wrap.clientWidth/2;
+    wrap.scrollTop = cy*wrap.scrollHeight - wrap.clientHeight/2;
+  }
+  // Smoothly keeps the active lesson note inside the comfortable middle of the viewport.
+  function followFocus(){
+    if(!document.body.classList.contains("immersive-mode")) return;
+    if(Date.now() - lastUserInput < 3500) return;
+    const wrap = document.getElementById("fretboardWrapper");
+    const m = document.querySelector("#fretboardInner .marker.learn-current");
+    if(!wrap || !m) return;
+    requestAnimationFrame(function(){
+      const wr = wrap.getBoundingClientRect(), mr = m.getBoundingClientRect();
+      const px = wr.width*0.22, py = wr.height*0.22;
+      let dx = 0, dy = 0;
+      if(mr.left < wr.left + px) dx = mr.left - (wr.left + px); else if(mr.right > wr.right - px) dx = mr.right - (wr.right - px);
+      if(mr.top < wr.top + py) dy = mr.top - (wr.top + py); else if(mr.bottom > wr.bottom - py) dy = mr.bottom - (wr.bottom - py);
+      if(dx || dy) wrap.scrollBy({ left:dx, top:dy, behavior:"smooth" });
+    });
+  }
+  function wireZoom(){
+    const wrap = document.getElementById("fretboardWrapper");
+    const touchDist = function(t){ return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) || 1; };
+    document.getElementById("zoomSlider").addEventListener("input", function(e){ setZoom(parseFloat(e.target.value)); });
+    document.getElementById("zoomInBtn").addEventListener("click", function(){ setZoom(zoomK*1.25); });
+    document.getElementById("zoomOutBtn").addEventListener("click", function(){ setZoom(zoomK/1.25); });
+    document.getElementById("zoomFitBtn").addEventListener("click", function(){
+      setZoom(Math.max(ZOOM_MIN, (lastFitAll/lastBase)*0.97));
+      resetPanToNut();
+    });
+    ["wheel","touchstart","pointerdown","scroll"].forEach(function(ev){
+      wrap.addEventListener(ev, function(){ lastUserInput = Date.now(); }, { passive:true });
+    });
+    // Ctrl/Cmd + wheel (and trackpad pinch) zoom
+    wrap.addEventListener("wheel", function(e){
+      if(!document.body.classList.contains("immersive-mode") || !(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      setZoom(zoomK * (e.deltaY < 0 ? 1.1 : 0.9));
+    }, { passive:false });
+    // two-finger pinch
+    let pinch = null;
+    wrap.addEventListener("touchstart", function(e){
+      if(e.touches.length === 2) pinch = { d:touchDist(e.touches), z:zoomK };
+    }, { passive:true });
+    wrap.addEventListener("touchmove", function(e){
+      if(!pinch || e.touches.length !== 2) return;
+      e.preventDefault();
+      setZoom(pinch.z * touchDist(e.touches) / pinch.d);
+    }, { passive:false });
+    wrap.addEventListener("touchend", function(e){ if(e.touches.length < 2) pinch = null; }, { passive:true });
+    // mouse drag-to-pan (touch uses native overflow scrolling)
+    let pan = null, suppress = false;
+    wrap.addEventListener("pointerdown", function(e){
+      if(e.pointerType !== "mouse" || e.button !== 0 || !document.body.classList.contains("immersive-mode")) return;
+      if(e.target.closest && e.target.closest(".knob, .note-dropdown")) return;
+      pan = { x:e.clientX, y:e.clientY, l:wrap.scrollLeft, t:wrap.scrollTop, moved:false };
+    });
+    window.addEventListener("pointermove", function(e){
+      if(!pan) return;
+      const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+      if(!pan.moved && Math.hypot(dx, dy) > 6){ pan.moved = true; wrap.classList.add("panning"); }
+      if(pan.moved){ wrap.scrollLeft = pan.l - dx; wrap.scrollTop = pan.t - dy; lastUserInput = Date.now(); }
+    });
+    window.addEventListener("pointerup", function(){
+      if(pan && pan.moved){ suppress = true; setTimeout(function(){ suppress = false; }, 60); }
+      pan = null;
+      wrap.classList.remove("panning");
+    });
+    wrap.addEventListener("click", function(e){ if(suppress){ e.stopPropagation(); e.preventDefault(); } }, true);
+    updateZoomUi();
   }
 
   /* ---------- Sliding HUD: Lesson Settings overlay ---------- */
@@ -5461,6 +5643,7 @@
     populateKeySelect();
     populateLessonSelect();
     wireControls();
+    wireZoom();
     renderDashboard();
     generateChallenge();
   }
