@@ -1203,6 +1203,54 @@
   }
   .audio-skip-btn:hover{color:var(--text-main);}
 
+  /* ---------- Dual solfa pill markers ("Ri / Mo", "Li / Toh") ---------- */
+  .marker.dual{
+    width:auto;
+    min-width:var(--mk, 26px);
+    padding:0 calc(var(--mk, 26px) * 0.2);
+    border-radius:calc(var(--mk, 26px) * 0.5);
+    font-size:calc(var(--mk, 26px) * 0.32);
+    white-space:nowrap;
+    letter-spacing:-0.2px;
+  }
+
+  /* ---------- Strategy D: Single String Laser Focus ---------- */
+  .laser-lane{
+    position:absolute; z-index:2; pointer-events:none; border-radius:8px;
+    background:linear-gradient(180deg, rgba(53,208,208,0.10), rgba(53,208,208,0.24), rgba(53,208,208,0.10));
+    box-shadow:0 0 18px rgba(53,208,208,0.45), inset 0 0 0 1px rgba(53,208,208,0.75);
+    animation:laserPulse 2.4s ease-in-out infinite;
+  }
+  .laser-lane.flash{animation:laserFlash .55s ease;}
+  .laser-dim{position:absolute; z-index:4; pointer-events:none; background:rgba(5,8,14,0.45);}
+  @keyframes laserPulse{0%,100%{opacity:.75;}50%{opacity:1;}}
+  @keyframes laserFlash{0%{box-shadow:0 0 0 rgba(255,120,120,0);}40%{box-shadow:0 0 26px rgba(255,120,120,0.95), inset 0 0 0 2px rgba(255,120,120,0.9);}100%{box-shadow:0 0 18px rgba(53,208,208,0.45), inset 0 0 0 1px rgba(53,208,208,0.75);}}
+
+  /* ---------- Unison Vector Arrows ---------- */
+  .vector-rig{position:absolute; left:0; top:0; z-index:11; pointer-events:none; overflow:visible;}
+  .vec-group{animation:vecFade .35s ease both;}
+  @keyframes vecFade{from{opacity:0;}to{opacity:1;}}
+  .vec-line{stroke-dasharray:1; stroke-dashoffset:1; animation:vecDraw .6s ease-out forwards;}
+  @keyframes vecDraw{to{stroke-dashoffset:0;}}
+  .vec-dest{animation:vecPulse 1.6s ease-in-out infinite; transform-box:fill-box; transform-origin:center;}
+  @keyframes vecPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.14);}}
+  .vec-chip-text{font:800 11px "Segoe UI",system-ui,sans-serif; fill:#10141f; pointer-events:none;}
+  .vec-dest-text{font:800 11px "Segoe UI",system-ui,sans-serif; fill:#ffffff; paint-order:stroke; stroke:rgba(0,0,0,0.85); stroke-width:3px; pointer-events:none;}
+
+  /* ---------- Academy extras ---------- */
+  .academy-btn{
+    border:1px solid var(--accent-violet); background:linear-gradient(180deg,var(--accent-violet),#4b3d99);
+    color:#f3f1ff; border-radius:9px; padding:9px 14px; font-size:12.5px; font-weight:800; cursor:pointer; margin:4px 8px 4px 0;
+  }
+  .academy-btn:hover{filter:brightness(1.12);}
+  .academy-input{
+    background:var(--bg-panel-raised); color:var(--text-main); border:1px solid var(--line);
+    border-radius:8px; padding:8px 10px; font-size:13px; width:150px; margin-right:6px;
+  }
+  .academy-result{margin-top:8px; font-size:12.5px; color:var(--accent-cyan); min-height:18px;}
+  .academy-table td.dual-cell{color:var(--accent-brass); font-weight:700; white-space:nowrap;}
+  .academy-table td.enh-cell{color:#c8b8ff; white-space:nowrap;}
+
   @media (max-width:720px){
     .fretboard-wrapper{padding:16px 10px 12px;}
     .academy-hub{width:100vw;}
@@ -1266,6 +1314,7 @@
         <option value="hunter">Strategy B &mdash; Syllable Note Hunter</option>
         <option value="matrix">Strategy A &mdash; Full Scale Matrix Mapping</option>
         <option value="interval">Strategy C &mdash; Interval Vector Flashcard</option>
+        <option value="laser">Strategy D: Single String Laser Focus</option>
       </select>
     </div>
     <div class="strategy-bar-item">
@@ -1307,6 +1356,15 @@
         <button data-notation="alphabet" class="active">Alphabet</button>
         <button data-notation="solfa">Tonic Solfa</button>
       </div>
+    </div>
+
+    <div class="control-card" id="vectorCard">
+      <div class="label">UNISON VECTOR ARROWS</div>
+      <div class="toggle-row vec-toggle" id="vecToggleDeck" role="group" aria-label="Unison vector arrows">
+        <button data-vec="show">SHOW</button>
+        <button data-vec="hide" class="active">HIDE</button>
+      </div>
+      <div class="switch-sub" style="margin-top:8px;">Tap any fret to see the same pitch one string away: 5 frets back or forward.</div>
     </div>
 
     <div class="control-card" id="focusModeCard">
@@ -1396,6 +1454,9 @@
             <option value="funk">Funk Groove (Syncopated Slap Snare)</option>
             <option value="jazz">Walking Jazz (Swing Ride &amp; Hi-Hat)</option>
             <option value="boombap">Boom-Bap Hip Hop (Heavy Kick &amp; Cracking Snare)</option>
+            <option value="highlife">Nigerian Highlife (Steady Afro-beat Kick)</option>
+            <option value="gospel">Gospel Shout (Uptempo Driving Beat)</option>
+            <option value="afropop">Afrobeats Pocket (Syncopated Contemporary Loop)</option>
           </select>
         </div>
         <div class="groove-control">
@@ -1534,7 +1595,38 @@
   // Because every scale/mode/arpeggio below is expressed purely as a set of semitone
   // offsets from the tonic, this single table automatically realigns solfa syllables
   // correctly for every mode and chord, in every key, across every training strategy.
-  const SOLFA = ["Do","Di","Re","Ri","Mi","Fa","Fi","Sol","Si","La","Li","Ti"];
+  // DUAL-SYSTEM CHROMATIC SOLFA: International syllables plus the Nigerian custom expansion.
+  // Where a semitone has a Nigerian alternate it is shown with a slash: "Ri / Mo" (minor 3rd) and
+  // "Li / Toh" (flat 7th). Every label, dropdown and fret indicator reads from SOLFA.
+  const SOLFA_INTL = ["Do","Di","Re","Ri","Mi","Fa","Fi","Sol","Si","La","Li","Ti"];
+  const SOLFA_NG   = [null,null,null,"Mo",null,null,null,null,null,null,"Toh",null];
+  const SOLFA = SOLFA_INTL.map(function(n, i){ return SOLFA_NG[i] ? n + " / " + SOLFA_NG[i] : n; });
+  // Enharmonic boundaries: the two places where a half-step has no black key between the white notes.
+  const SOLFA_ENHARMONIC = [
+    { deg:0,  spell:"Ti\u266F", equals:"Do", why:"Ti sharp is the same pitch as Do: the half-step above Ti is Do itself." },
+    { deg:4,  spell:"Fa\u266D", equals:"Mi", why:"Fa flat is the same pitch as Mi: the half-step below Fa is Mi itself." },
+    { deg:5,  spell:"Mi\u266F", equals:"Fa", why:"Mi sharp is the same pitch as Fa: the half-step above Mi is Fa itself." },
+    { deg:11, spell:"Do\u266D", equals:"Ti", why:"Do flat is the same pitch as Ti: the half-step below Do is Ti itself." }
+  ];
+  function solfaEnharmonicFor(deg){
+    for(let i = 0; i < SOLFA_ENHARMONIC.length; i++){ if(SOLFA_ENHARMONIC[i].deg === deg) return SOLFA_ENHARMONIC[i]; }
+    return null;
+  }
+  // Every spelling the engine recognises, mapped to its semitone distance from the tonic.
+  const SOLFA_ALIAS = {};
+  function solfaKey(t){ return String(t).trim().toLowerCase().replace(/\u266f/g, "#").replace(/\u266d/g, "b").replace(/\s+/g, ""); }
+  SOLFA_INTL.forEach(function(n, i){ SOLFA_ALIAS[solfaKey(n)] = i; });
+  SOLFA_NG.forEach(function(n, i){ if(n) SOLFA_ALIAS[solfaKey(n)] = i; });
+  SOLFA_ENHARMONIC.forEach(function(e){ SOLFA_ALIAS[solfaKey(e.spell)] = e.deg; });
+  // Accepts "Ri", "Mo", "Ri / Mo", "Toh", "Mi#", "Fa\u266D", "Ti#", "Do\u266D" ... returns 0-11, or -1.
+  function parseSolfa(text){
+    const parts = String(text).split("/");
+    for(let i = 0; i < parts.length; i++){
+      const k = solfaKey(parts[i]);
+      if(SOLFA_ALIAS[k] !== undefined) return SOLFA_ALIAS[k];
+    }
+    return -1;
+  }
 
   const INTERVAL_NAMES = [
     "Root / Unison","Minor 2nd","Major 2nd","Minor 3rd","Major 3rd","Perfect 4th",
@@ -1651,6 +1743,7 @@
     knobs: { volume: 0.75, tone: 0.62, pickup: 0.35 },
     tuningShift: 0, // semitones applied to every string; -2, -1, 0, +1 keep all strings a perfect 4th apart
     fitView: false,
+    vectors: { enabled:false, sel:null },   // Unison Vector Arrows
     handGuide: true, // Hand Graphic Guide: SHOW / HIDE for the vector hand layer
     learn: {
       lessonId: "octave",
@@ -1661,7 +1754,8 @@
       playing: false,
       timeoutId: null,
       speed: 1,
-      autoNext: false
+      autoNext: false,
+      loop: 0, tick: 0, tickMap: {}, riffDone: false, nextAt: 0   // synchronized-drum riff clock
     }
   };
 
@@ -1835,8 +1929,37 @@
       kick:  [1,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0],
       snare: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1],
       hat:   [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0]
+    },
+    // Nigerian Highlife: steady Afro-beat kick (1, 2&, 3, 4&), backbeat snare, bouncing 8th/16th hats
+    highlife: {
+      kick:  [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1,0],
+      snare: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+      hat:   [1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1]
+    },
+    // Gospel shout: uptempo, driving kick, backbeat snare with 16th pushes, constant 16th hats
+    gospel: {
+      kick:  [1,0,0,1,0,0,0,0,1,0,0,1,0,0,1,0],
+      snare: [0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1],
+      hat:   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    },
+    // Contemporary Afrobeats: 3-3-4-3-3 syncopated kick, backbeat snare, off-beat hats with shaker 16ths
+    afropop: {
+      kick:  [1,0,0,1,0,0,1,0,0,0,1,0,0,1,0,0],
+      snare: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+      hat:   [1,0,1,1,1,0,1,0,1,0,1,1,1,0,1,0]
     }
   };
+
+  // Plays one 16th-note column of a drum pattern (shared by the Groove Sandbox and the riff autopilot)
+  function playDrumStep(patternKey, step){
+    const pattern = DRUM_PATTERNS[patternKey];
+    if(!pattern) return;
+    if(pattern.kick && pattern.kick[step]) playKick();
+    if(pattern.snare && pattern.snare[step]) playSnare();
+    if(pattern.hat && pattern.hat[step]) playHihatClosed(0.55);
+    if(pattern.ride && pattern.ride[step]) playRide();
+    if(pattern.hatFoot && pattern.hatFoot[step]) playHihatClosed(0.32);
+  }
 
   function createNoiseBuffer(ctx, duration){
     const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * duration));
@@ -2039,11 +2162,14 @@
       if(keySelectEl) keySelectEl.value = state.key;
     }
 
+    state.vectors.sel = null;
     const strategy = state.strategy;
     if(strategy === "matrix"){
       generateMatrixChallenge();
     } else if(strategy === "interval"){
       generateIntervalChallenge();
+    } else if(strategy === "laser"){
+      generateLaserChallenge();
     } else {
       generateHunterChallenge();
     }
@@ -2209,11 +2335,37 @@
     state.gradeResult = null;
   }
 
+  // --- Strategy D: Single String Laser Focus ---
+  // Locks onto ONE string. The target note is drawn from the active Focus Training Mode, and only the
+  // 25 positions (open + 24 frets) on that single string lane are graded.
+  function generateLaserChallenge(){
+    const strings = activeStrings();
+    const degrees = activeDegreeSet();
+    const stringIndex = Math.floor(Math.random()*strings.length);
+    const degree = degrees[Math.floor(Math.random()*degrees.length)];
+    const pitchClass = (keyIndex() + degree) % 12;
+    const label = state.notation === "alphabet" ? NOTES[pitchClass] : SOLFA[degree];
+    const correctSet = new Set();
+    for(let f=0; f<=FRET_COUNT; f++){
+      if(pitchClassAt(strings[stringIndex], f) === pitchClass) correctSet.add(stringIndex+"-"+f);
+    }
+    state.challenge = {
+      type: "laser",
+      degree, pitchClass, label,
+      stringIndex, stringName: strings[stringIndex].name,
+      correctSet
+    };
+    state.markers = {};
+    state.graded = false;
+    state.gradeResult = null;
+  }
+
   function challengeTargetSummary(){
     const c = state.challenge;
     if(!c) return "-";
     if(c.type === "hunter") return c.label;
     if(c.type === "matrix") return "Full Matrix";
+    if(c.type === "laser") return c.label + " on " + c.stringName + " string";
     if(c.type === "interval") return c.intervalName;
     return "-";
   }
@@ -2222,6 +2374,7 @@
     if(s === "hunter") return "Syllable Hunter";
     if(s === "matrix") return "Scale Matrix";
     if(s === "interval") return "Interval Flashcard";
+    if(s === "laser") return "Single String Laser Focus";
     return s;
   }
 
@@ -2234,7 +2387,13 @@
     if(!c) return;
     const el = document.getElementById("challengeText");
     const focusTag = ` &nbsp;|&nbsp; <span class="tag">Focus:</span> ${focusModeName(state.focusMode)}`;
-    if(c.type === "hunter"){
+    if(c.type === "laser"){
+      el.innerHTML =
+        `<span class="tag">Target String:</span> ${c.stringName}` +
+        ` &nbsp;|&nbsp; <span class="tag">Key:</span> ${state.key}` +
+        ` &nbsp;|&nbsp; <span class="tag">Objective:</span> Locate and label every instance of ` +
+        `<span class="target">'${c.label}'</span> EXCLUSIVELY on this single string.`;
+    } else if(c.type === "hunter"){
       el.innerHTML =
         `<span class="tag">Strategy:</span> Syllable Note Hunter` +
         ` &nbsp;|&nbsp; <span class="tag">Song Key:</span> ${state.key}${state.keyMode==="auto" ? " (Auto)":""}` +
@@ -2412,6 +2571,8 @@
       board.appendChild(label);
     });
 
+    renderLaserLane(board, strings);
+
     // Clickable cells (open + 24 frets) per string
     const learnMap = (state.workstationMode === "learn") ? buildLearnMap() : {};
     let sandboxStepMap = {};
@@ -2517,6 +2678,32 @@
     updateHandOverlay();
     fitBoard();
     followFocus();
+    renderVectors();
+  }
+
+  // Strategy D: glowing corridor on the target string, dimmed lanes on every other string.
+  function renderLaserLane(board, strings){
+    const c = state.challenge;
+    if(state.workstationMode !== "training" || !c || c.type !== "laser") return;
+    const along = totalAlongLength();
+    strings.forEach(function(sDef, sIdx){
+      const lane = document.createElement("div");
+      lane.className = sIdx === c.stringIndex ? "laser-lane" : "laser-dim";
+      const cy = stringCenterY(sIdx) - STRING_ROW_HEIGHT/2;
+      const p = orient(0, cy), sz = orientSize(along, STRING_ROW_HEIGHT);
+      lane.style.left = p.x + "px";
+      lane.style.top = p.y + "px";
+      lane.style.width = sz.w + "px";
+      lane.style.height = sz.h + "px";
+      board.appendChild(lane);
+    });
+  }
+  function flashLaserLane(){
+    const lane = document.querySelector("#fretboard .laser-lane");
+    if(!lane) return;
+    lane.classList.remove("flash");
+    void lane.offsetWidth;
+    lane.classList.add("flash");
   }
 
   function buildMarkerEl(key, sIdx, fret, sDef){
@@ -2524,6 +2711,7 @@
     const marker = document.createElement("div");
     marker.className = "marker";
     marker.textContent = data.label;
+    if(data.label.indexOf(" / ") !== -1) marker.classList.add("dual");
 
     if(data.locked){
       marker.classList.add("anchor-locked");
@@ -3254,6 +3442,120 @@
     applyFitScale(inner, wrap, scale, padY, ih, immersive, iw);
   }
 
+  /* ---------- Unison Vector Arrows ---------- */
+  // Adjacent bass strings are a perfect 4th (5 semitones) apart, so the SAME pitch on a neighbouring
+  // string is always exactly 5 frets away: one string DOWN (toward the low string) = 5 frets BACK
+  // (fret + 5, toward the bridge); one string UP = 5 frets FORWARD (fret - 5, toward the nut).
+  // Example: C on the A string fret 3 is the same C on the E string fret 8.
+  const VNS = "http://www.w3.org/2000/svg";
+  const VEC_COLORS = { down:"#ff6fb5", up:"#ffe14d" };
+  function vecPoint(s, f){
+    return orient(LABEL_GUTTER + fretCenterX(f), CROSS_PAD + stringCenterY(s));
+  }
+  function vecAdjacent(s, f){
+    const n = activeStrings().length, out = [];
+    if(s - 1 >= 0 && f + 5 <= FRET_COUNT) out.push({ a:{ s:s, f:f }, b:{ s:s - 1, f:f + 5 }, dir:"down" });
+    if(s + 1 < n && f - 5 >= 0) out.push({ a:{ s:s, f:f }, b:{ s:s + 1, f:f - 5 }, dir:"up" });
+    return out;
+  }
+  function vEl(tag, attrs){
+    const e = document.createElementNS(VNS, tag);
+    Object.keys(attrs || {}).forEach(function(k){ e.setAttribute(k, attrs[k]); });
+    return e;
+  }
+  function drawVec(svg, v, k){
+    const pa = vecPoint(v.a.s, v.a.f), pb = vecPoint(v.b.s, v.b.f);
+    const dx = pb.x - pa.x, dy = pb.y - pa.y, len = Math.hypot(dx, dy) || 1;
+    const ux = dx/len, uy = dy/len, r = MARKER_PX/2;
+    const x1 = pa.x + ux*(r + 4), y1 = pa.y + uy*(r + 4);
+    const x2 = pb.x - ux*(r + 9), y2 = pb.y - uy*(r + 9);
+    const col = VEC_COLORS[v.dir];
+    const g = vEl("g", { "class":"vec-group" });
+    g.style.animationDelay = (k*0.12) + "s";
+    // destination ghost marker: the same pitch, one string away
+    const sDef = activeStrings()[v.b.s];
+    const destLabel = labelForPitchClass(pitchClassAt(sDef, v.b.f));
+    const dr = Math.max(r, destLabel.length > 3 ? r + 9 : r);
+    g.appendChild(vEl("circle", { cx:pb.x, cy:pb.y, r:dr, fill:col, "fill-opacity":"0.26", stroke:col, "stroke-width":"2.4", "stroke-dasharray":"4 3", "class":"vec-dest" }));
+    const dt = vEl("text", { x:pb.x, y:pb.y, "text-anchor":"middle", "dominant-baseline":"central", "class":"vec-dest-text" });
+    dt.setAttribute("style", "font-size:" + (destLabel.length > 3 ? 8.5 : 11) + "px");
+    dt.textContent = destLabel;
+    // soft shadow + translucent arrow
+    g.appendChild(vEl("line", { x1:x1, y1:y1, x2:x2, y2:y2, stroke:"#000", "stroke-opacity":"0.38", "stroke-width":"9", "stroke-linecap":"round", pathLength:"1", "class":"vec-line" }));
+    g.appendChild(vEl("line", { x1:x1, y1:y1, x2:x2, y2:y2, stroke:col, "stroke-opacity":"0.85", "stroke-width":"5.5", "stroke-linecap":"round", pathLength:"1", "class":"vec-line", "marker-end":"url(#vecHead" + (v.dir === "down" ? "Down" : "Up") + ")" }));
+    g.appendChild(dt);
+    // distance chip
+    const text = v.dir === "down" ? "Down 1 \u00B7 Back 5" : "Up 1 \u00B7 Forward 5";
+    const cw = text.length*5.9 + 14, ch = 17;
+    const mx = (x1 + x2)/2, my = (y1 + y2)/2;
+    const vertical = state.orientation === "vertical";
+    const cx = vertical ? mx + (v.dir === "down" ? 1 : -1)*(cw/2 + 14) : mx;
+    const cy = vertical ? my : my + (v.dir === "down" ? -1 : 1)*(ch/2 + 12);
+    g.appendChild(vEl("rect", { x:cx - cw/2, y:cy - ch/2, width:cw, height:ch, rx:8, fill:col, "fill-opacity":"0.92", stroke:"#000", "stroke-opacity":"0.4" }));
+    const ct = vEl("text", { x:cx, y:cy, "text-anchor":"middle", "dominant-baseline":"central", "class":"vec-chip-text" });
+    ct.textContent = text;
+    g.appendChild(ct);
+    svg.appendChild(g);
+  }
+  function renderVectors(){
+    const inner = document.getElementById("fretboardInner");
+    if(!inner) return;
+    let svg = document.getElementById("vectorRig");
+    if(!svg){
+      svg = document.createElementNS(VNS, "svg");
+      svg.setAttribute("id", "vectorRig");
+      svg.setAttribute("class", "vector-rig");
+      svg.setAttribute("aria-hidden", "true");
+      inner.appendChild(svg);
+    }
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    const V = state.vectors;
+    if(!V.enabled) return;
+    svg.setAttribute("width", parseFloat(inner.style.width) || 0);
+    svg.setAttribute("height", parseFloat(inner.style.height) || 0);
+    const list = [];
+    const L = state.learn;
+    if(state.workstationMode === "learn" && L.lessonId === "unison" && L.idx >= 0 && L.steps[L.idx] && L.steps[L.idx].vec){
+      L.steps[L.idx].vec.forEach(function(v){ list.push(v); });
+    }
+    if(V.sel) vecAdjacent(V.sel.s, V.sel.f).forEach(function(v){ list.push(v); });
+    if(!list.length) return;
+    const defs = vEl("defs");
+    ["Down","Up"].forEach(function(name){
+      const m = vEl("marker", { id:"vecHead" + name, markerWidth:"16", markerHeight:"16", refX:"12", refY:"8", orient:"auto", markerUnits:"userSpaceOnUse" });
+      m.appendChild(vEl("path", { d:"M1 1 L14 8 L1 15 Z", fill:VEC_COLORS[name.toLowerCase()], "fill-opacity":"0.95", stroke:"#000", "stroke-opacity":"0.35", "stroke-width":"1" }));
+      defs.appendChild(m);
+    });
+    svg.appendChild(defs);
+    if(V.sel){
+      const sp = vecPoint(V.sel.s, V.sel.f);
+      svg.appendChild(vEl("circle", { cx:sp.x, cy:sp.y, r:MARKER_PX/2 + 5, fill:"none", stroke:"#ffffff", "stroke-opacity":"0.85", "stroke-width":"2", "stroke-dasharray":"3 3" }));
+    }
+    list.forEach(function(v, k){ drawVec(svg, v, k); });
+  }
+  function vectorsOnCell(cell){
+    if(!state.vectors.enabled || !cell || !cell.dataset) return;
+    state.vectors.sel = { s:parseInt(cell.dataset.string, 10), f:parseInt(cell.dataset.fret, 10) };
+    renderVectors();
+  }
+  function syncVecToggles(){
+    document.querySelectorAll(".vec-toggle button").forEach(function(b){
+      b.classList.toggle("active", (b.dataset.vec === "show") === state.vectors.enabled);
+    });
+  }
+  function setVectors(on){
+    state.vectors.enabled = !!on;
+    if(!on) state.vectors.sel = null;
+    syncVecToggles();
+    renderVectors();
+  }
+  function bindVecToggles(root){
+    root.querySelectorAll(".vec-toggle button").forEach(function(b){
+      b.addEventListener("click", function(){ setVectors(b.dataset.vec === "show"); });
+    });
+    syncVecToggles();
+  }
+
   /* =========================================================
      8. INTERACTIVE LABELING (dropdown)
      ========================================================= */
@@ -3264,6 +3566,7 @@
   }
 
   function onCellClick(e){
+    vectorsOnCell(e.currentTarget);
     if(state.workstationMode === "sandbox"){
       handleSandboxCellClick(e);
       return;
@@ -3289,6 +3592,12 @@
 
     const c = state.challenge;
 
+    // Strategy D: only the targeted string lane accepts labels; every other string is ignored
+    if(c && c.type === "laser" && sIdx !== c.stringIndex){
+      flashLaserLane();
+      return;
+    }
+
     // Interval flashcard: the mystery anchor itself is not editable, just a tone preview
     if(c && c.type === "interval" && key === c.anchorKey){
       return;
@@ -3306,7 +3615,7 @@
     const optionPitchClasses = allowedLabelOptions();
     optionPitchClasses.forEach(opt=>{
       const btn = document.createElement("button");
-      btn.textContent = opt.label;
+      btn.textContent = opt.display || opt.label;
       btn.addEventListener("click", (ev)=>{
         ev.stopPropagation();
         state.markers[key] = { label: opt.label, pitchClass: opt.pitchClass };
@@ -3348,11 +3657,20 @@
     // whatever set of degrees the challenge generator drew from is exactly what the
     // labeling dropdown offers, so the answer choices always match the active mode.
     const degrees = activeDegreeSet();
-    return degrees.map(deg=>{
+    const out = [];
+    degrees.forEach(deg=>{
       const pc = (keyIndex()+deg)%12;
       const label = state.notation === "alphabet" ? NOTES[pc] : SOLFA[deg];
-      return { pitchClass: pc, label };
+      out.push({ pitchClass: pc, label });
     });
+    // Tonic Solfa also accepts the enharmonic boundary spellings (Mi#=Fa, Fa♭=Mi, Ti#=Do, Do♭=Ti)
+    if(state.notation === "solfa"){
+      degrees.forEach(deg=>{
+        const e = solfaEnharmonicFor(deg);
+        if(e) out.push({ pitchClass:(keyIndex()+deg)%12, label:e.spell, display:e.spell + " (= " + e.equals + ")" });
+      });
+    }
+    return out;
   }
 
   /* =========================================================
@@ -3451,10 +3769,25 @@
     finalizeGrade(correct, wrong, missed, 1, [], false);
   }
 
+  // Strategy D: grading looks ONLY at the targeted string corridor; anything elsewhere is ignored.
+  function gradeLaser(c){
+    const correct = new Set(), wrong = new Set(), missed = new Set();
+    Object.keys(state.markers).forEach(key=>{
+      const sIdx = parseInt(key.split("-")[0], 10);
+      if(sIdx !== c.stringIndex) return;
+      const marker = state.markers[key];
+      if(c.correctSet.has(key) && marker.pitchClass === c.pitchClass) correct.add(key);
+      else wrong.add(key);
+    });
+    c.correctSet.forEach(key=>{ if(!correct.has(key)) missed.add(key); });
+    finalizeGrade(correct, wrong, missed, c.correctSet.size, [], false);
+  }
+
   function gradeCanvas(){
     const c = state.challenge;
     if(!c) return;
-    if(c.type === "hunter") gradeHunter(c);
+    if(c.type === "laser") gradeLaser(c);
+    else if(c.type === "hunter") gradeHunter(c);
     else if(c.type === "matrix") gradeMatrix(c);
     else if(c.type === "interval") gradeInterval(c);
   }
@@ -3550,6 +3883,72 @@
   /* =========================================================
      11. THE ACADEMY HUB (Learn Mode Dashboard)
      ========================================================= */
+  function academySolfaHtml(){
+    let rows = "";
+    for(let d = 0; d < 12; d++){
+      const e = solfaEnharmonicFor(d);
+      rows += `<tr><td>${d}</td><td>${INTERVAL_NAMES[d]}</td><td class="${SOLFA_NG[d] ? "dual-cell" : ""}">${SOLFA[d]}</td><td>${NOTES[(keyIndex()+d)%12]}</td><td class="enh-cell">${e ? e.spell + " = " + e.equals : "&mdash;"}</td></tr>`;
+    }
+    const enhCards = SOLFA_ENHARMONIC.map(e=>`<div class="academy-tip"><b>${e.spell} = ${e.equals}.</b> ${e.why}</div>`).join("");
+    return `
+      <div class="academy-section">
+        <h3>Tonic Solfa Chromatic Map (International / Nigerian)</h3>
+        <div class="academy-tip">Tonic Solfa mode shows both systems with a slash: the minor 3rd is <b>Ri / Mo</b> and the flat 7th is <b>Li / Toh</b>. Every other semitone uses its single international name.</div>
+        <div class="academy-table-scroll">
+          <table class="academy-table">
+            <thead><tr><th>Semi</th><th>Interval</th><th>Solfa</th><th>Key ${state.key}</th><th>Enharmonic</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <h3 style="margin-top:16px;">Enharmonic Boundaries (no black key)</h3>
+        ${enhCards}
+        <div class="academy-tip"><b>Solfa Decoder:</b> type any spelling (Ri, Mo, Toh, Mi#, Fa&flat;, Ti#, Do&flat;) to see where it sits.
+          <div style="margin-top:8px;"><input class="academy-input" id="academySolfaIn" type="text" placeholder="e.g. Mo or Ti#" autocomplete="off"><button class="academy-btn" id="academySolfaBtn">Decode</button></div>
+          <div class="academy-result" id="academySolfaOut"></div>
+        </div>
+      </div>`;
+  }
+  function academyVectorHtml(){
+    const strings = activeStrings();
+    const sA = lowEIdx() + 1;
+    const fA = rootFretOn(sA);
+    const lab = labelForPitchClass(pitchClassAt(strings[sA], fA));
+    const example = `${lab} on the ${strings[sA].name} string, fret ${fA} &rarr; the same ${lab} on the ${strings[sA-1].name} string, fret ${fA + 5}`;
+    return `
+      <div class="academy-section">
+        <h3>String-to-String Distance Vectors (The Unison Geometry Guide)</h3>
+        <div class="academy-tip"><b>The rule:</b> neighbouring bass strings are a perfect 4th (5 semitones) apart, so the same pitch is always 5 frets away on the next string. <b>Down 1 string = back 5 frets (+5).</b> <b>Up 1 string = forward 5 frets (&minus;5).</b></div>
+        <div class="academy-tip"><b>Your key:</b> ${example}.</div>
+        <div class="academy-tip">With arrows on, tap any fret: a <span style="color:#ff6fb5;font-weight:800;">pink</span> arrow shows the backward vector (down 1 string, back 5) and a <span style="color:#ffe14d;font-weight:800;">yellow</span> arrow shows the forward vector (up 1 string, forward 5), each ending on a ghost marker with the note name.</div>
+        <div style="margin:6px 0 10px;">
+          <span class="label" style="font-size:11px;color:var(--text-dim);font-weight:700;margin-right:8px;">UNISON VECTOR ARROWS</span>
+          <span class="toggle-row vec-toggle" style="display:inline-flex;" role="group" aria-label="Unison vector arrows (academy)"><button data-vec="show">SHOW</button><button data-vec="hide" class="active">HIDE</button></span>
+        </div>
+        <button class="academy-btn" id="academyUnisonGo">Open the Unison Lesson in Watch &amp; Learn</button>
+      </div>`;
+  }
+  function bindAcademyExtras(container){
+    bindVecToggles(container);
+    const go = container.querySelector("#academyUnisonGo");
+    if(go) go.addEventListener("click", function(){
+      closeAcademyHub();
+      const btn = document.querySelector('#workstationModeToggle button[data-wsmode="learn"]');
+      if(btn) btn.click();
+      loadLesson("unison", false);
+      playLearn();
+    });
+    const inp = container.querySelector("#academySolfaIn"), dec = container.querySelector("#academySolfaBtn"), out = container.querySelector("#academySolfaOut");
+    if(inp && dec && out){
+      const run = function(){
+        const d = parseSolfa(inp.value);
+        if(d < 0){ out.textContent = "Not recognised. Try Do, Di, Re, Ri, Mo, Mi, Fa, Fi, Sol, Si, La, Li, Toh, Ti, Mi#, Fa\u266D, Ti# or Do\u266D."; return; }
+        out.textContent = inp.value.trim() + " = semitone " + d + " (" + INTERVAL_NAMES[d] + ") = " + SOLFA[d] + "; in the key of " + state.key + " that is " + NOTES[(keyIndex()+d)%12] + ".";
+      };
+      dec.addEventListener("click", run);
+      inp.addEventListener("keydown", function(e){ if(e.key === "Enter") run(); });
+    }
+  }
+
   function renderAcademyHub(){
     const container = document.getElementById("academyContent");
     const key = state.key;
@@ -3601,6 +4000,8 @@
         <h3>Interval Formula Matrix</h3>
         ${intervalMatrixHtml}
       </div>
+      ${academySolfaHtml()}
+      ${academyVectorHtml()}
       <div class="academy-section">
         <h3>Geometric Neck Navigation</h3>
         ${neckTipsHtml}
@@ -3610,6 +4011,7 @@
         ${moodGuidesHtml}
       </div>
     `;
+    bindAcademyExtras(container);
   }
 
   function isAcademyOpen(){
@@ -3636,12 +4038,7 @@
   }
 
   function triggerStep(step){
-    const pattern = DRUM_PATTERNS[state.groove.genre];
-    if(pattern.kick && pattern.kick[step]) playKick();
-    if(pattern.snare && pattern.snare[step]) playSnare();
-    if(pattern.hat && pattern.hat[step]) playHihatClosed(0.55);
-    if(pattern.ride && pattern.ride[step]) playRide();
-    if(pattern.hatFoot && pattern.hatFoot[step]) playHihatClosed(0.32);
+    playDrumStep(state.groove.genre, step);
 
     const note = state.groove.steps[step];
     if(note){
@@ -3797,7 +4194,7 @@
     return { empty:false, toneMsg, spacingMsg, shapeMsg, outsideCount: outsideNotes.length };
   }
 
-  const DRUM_GENRE_LABELS = { funk:"Funk Groove", jazz:"Walking Jazz", boombap:"Boom-Bap Hip Hop" };
+  const DRUM_GENRE_LABELS = { funk:"Funk Groove", jazz:"Walking Jazz", boombap:"Boom-Bap Hip Hop", highlife:"Nigerian Highlife", gospel:"Gospel Shout", afropop:"Afrobeats Pocket" };
 
   function renderGrooveFeedback(analysis){
     const el = document.getElementById("grooveFeedbackBanner");
@@ -3854,6 +4251,7 @@
       hl: !!o.hl,
       group: o.group || 0,
       dur: o.dur || 1,
+      tick: o.tick,
       fing: o.fing,
       rh: o.rh,
       rhf: o.rhf
@@ -4745,6 +5143,181 @@
     return relChordSteps(0, chords);
   }
 
+  // ---------- Category 1 addition: String-to-String Distance Vectors (Unison Geometry) ----------
+  // Same pitch on a neighbouring string: ONE string down = 5 frets BACK (+5), ONE string up = 5 frets
+  // FORWARD (-5). Each step carries a `vec` so the Unison Vector Arrows project the exact path.
+  function buildUnisonLesson(){
+    const strings = activeStrings(), n = strings.length, steps = [];
+    let g = 0;
+    function labelAt(s, f){ return labelForPitchClass(pitchClassAt(strings[s], f)); }
+    function vstep(s, f, dir, from, cap, hl){
+      const st = mkStep(s, f, { group:g, hl:!!hl, cap:cap });
+      if(from) st.vec = [{ a:{ s:from.s, f:from.f }, b:{ s:s, f:f }, dir:dir }];
+      return st;
+    }
+    for(let s = 0; s + 1 < n; s++){
+      let r = rootFretOn(s);
+      if(r < 5) r += 12;                 // guarantees fret - 5 >= 0 on the next string up
+      const lab = labelAt(s, r);
+      const lo = { s:s, f:r }, hi = { s:s + 1, f:r - 5 };
+      steps.push(vstep(s, r, "up", null, "UNISON START: " + lab + " on the " + strings[s].name + " string, " + fretText(r) + ". The very same pitch also lives on the next string, and the distance is ALWAYS the same.", true));
+      steps.push(vstep(hi.s, hi.f, "up", lo, "FORWARD VECTOR (up 1 string, forward 5 frets): from the " + strings[s].name + " string " + fretText(r) + " to the " + strings[hi.s].name + " string " + fretText(hi.f) + ". Same " + lab + ", five frets closer to the nut (fret \u2212 5).", true));
+      steps.push(vstep(lo.s, lo.f, "down", hi, "BACKWARD VECTOR (down 1 string, back 5 frets): from the " + strings[hi.s].name + " string " + fretText(hi.f) + " back to the " + strings[lo.s].name + " string " + fretText(lo.f) + ". Same " + lab + ", five frets toward the bridge (fret + 5). No arithmetic: just follow the arrow.", true));
+      g++;
+    }
+    // Descending staircase: down one string at a time, five frets back each hop
+    const t = n - 1;
+    let cur = { s:t, f:rootFretOn(t) };
+    const chain = [cur];
+    while(cur.s - 1 >= 0 && cur.f + 5 <= FRET_COUNT){ cur = { s:cur.s - 1, f:cur.f + 5 }; chain.push(cur); }
+    if(chain.length > 1){
+      const lab = labelAt(chain[0].s, chain[0].f);
+      steps.push(vstep(chain[0].s, chain[0].f, "down", null, "STAIRCASE: start on the highest string. We will walk the same " + lab + " down through every string.", true));
+      for(let i = 1; i < chain.length; i++){
+        steps.push(vstep(chain[i].s, chain[i].f, "down", chain[i-1], "Down 1 string, back 5 frets: " + strings[chain[i].s].name + " string, " + fretText(chain[i].f) + ". The same " + lab + " again.", i === chain.length - 1));
+      }
+      g++;
+      for(let i = chain.length - 2; i >= 0; i--){
+        steps.push(vstep(chain[i].s, chain[i].f, "up", chain[i+1], "Back up the staircase: up 1 string, forward 5 frets (" + strings[chain[i].s].name + " string, " + fretText(chain[i].f) + "). One rule, both directions.", i === 0));
+      }
+    }
+    return steps;
+  }
+
+  // ---------- Category 10: Multi-Genre Global Riffs (synchronized drum synthesis) ----------
+  // Every riff is a looping bass line authored on a 16th-note grid: `tick` is the 16th-note column in
+  // the loop (16 per bar) and `dur` its length in ticks. The riff autopilot runs ONE shared clock that
+  // fires the drum pattern and the bass notes together, so bass and drums can never drift apart.
+  function rf(tick, len, off, ds, cap, o){
+    const sp = { tick:tick, dur:len, off:off, ds:ds, cap:cap, group:0 };
+    if(o) Object.keys(o).forEach(function(k){ sp[k] = o[k]; });
+    return sp;
+  }
+
+  // Nigerian Highlife: root-to-5th bounce through steady major triads (I | IV | V | I), two bars.
+  function buildHighlifeLesson(){
+    function grp(g, t0, ro, lastOct, caps){
+      return [
+        rf(t0,     2, ro,      0, caps[0], { group:g, fing:1, hl:true }),
+        rf(t0 + 2, 2, ro + 7,  1, caps[1], { group:g, fing:3 }),
+        lastOct ? rf(t0 + 4, 2, ro + 12, 2, caps[2], { group:g, fing:3 })
+                : rf(t0 + 4, 2, ro + 4,  0, caps[2], { group:g, fing:4 }),
+        rf(t0 + 6, 2, ro + 7,  1, caps[3], { group:g, fing:3 })
+      ];
+    }
+    let specs = [];
+    specs = specs.concat(grp(0, 0, 0, false, [
+      "BAR 1, beat 1 (I chord): the ROOT lands exactly on the Afro-beat kick. Highlife basses sit right in the kick's pocket.",
+      "'&' of 1: bounce UP to the 5th (one string up, two frets over). Root-to-5th is the heartbeat of the style.",
+      "Beat 2: the MAJOR 3rd on the low string, pinky (4): now you are outlining the full I triad (1-3-5).",
+      "'&' of 2: back to the 5th. The bounce is steady, even and bright."
+    ]));
+    specs = specs.concat(grp(1, 8, 5, false, [
+      "Beat 3 (IV chord): the same hand shape slides up five frets. The root meets the second kick of the bar.",
+      "'&': the 5th of the IV: same bounce, same fingers.",
+      "Beat 4: the major 3rd of the IV, pinky (4). Triads stay major and sunny.",
+      "'&': the 5th again, leading the ear forward."
+    ]));
+    specs = specs.concat(grp(2, 16, 7, false, [
+      "BAR 2, beat 1 (V chord): two frets above the I. Same shape, one more slide.",
+      "'&': the 5th of the V.",
+      "Beat 2: the major 3rd of the V.",
+      "'&': the 5th, preparing the turnaround."
+    ]));
+    specs = specs.concat(grp(3, 24, 0, true, [
+      "Beat 3 (back to the I): the root returns on the kick, home again.",
+      "'&': the 5th.",
+      "Beat 4: the OCTAVE (two strings up, two frets over) replaces the 3rd and lifts the line into the turnaround.",
+      "'&': the 5th: the loop wraps straight into bar 1 with no gap."
+    ]));
+    return relSteps(lowEIdx(), specs, false);
+  }
+
+  // Gospel Shout Bass Break: fast, syncopated minor-pentatonic / blues runs with 'Mo' (b3) and 'Toh' (b7).
+  function buildGospelLesson(){
+    const specs = [
+      rf(0,  3, 0,  0, "BAR 1, beat 1: the ROOT 'Do', held for a dotted eighth. Gospel breaks start with a fat accent on the one.", { group:0, fing:1, hl:true }),
+      rf(3,  1, 3,  0, "'a': 'Mo' (the minor 3rd, also called 'Ri'): a quick passing step, pinky (4). The blue colour of the shout.", { group:0, fing:4, hl:true }),
+      rf(4,  2, 5,  1, "Beat 2: the 4th 'Fa' on the A string, same fret as the root, index (1). Syncopated pickup into the run.", { group:1, fing:1 }),
+      rf(6,  1, 6,  1, "'&': the BLUES note 'Fi' (\u266D5), middle (2): pass through it, never rest on it.", { group:1, fing:2 }),
+      rf(7,  1, 7,  1, "'a': the 5th 'Sol', ring (3): the blue note resolves up.", { group:1, fing:3 }),
+      rf(8,  2, 10, 2, "Beat 3: 'Toh' (the flat 7th, also 'Li') on the D string, on the SAME fret as the root, index (1). The shout lifts.", { group:2, fing:1, hl:true }),
+      rf(10, 1, 7,  1, "'&': drop to the 5th 'Sol': a falling answer.", { group:2, fing:3 }),
+      rf(11, 1, 6,  1, "'a': 'Fi', the blue passing tone, on the way down.", { group:2, fing:2 }),
+      rf(12, 2, 5,  1, "Beat 4: 'Fa' again, index (1): the run is descending the minor pentatonic with a blues step.", { group:3, fing:1 }),
+      rf(14, 1, 3,  0, "'&': 'Mo' on the low string: passing step down toward the root.", { group:3, fing:4 }),
+      rf(15, 1, 0,  0, "'a': pick-up ROOT: it pulls straight into bar 2's accent.", { group:3, fing:1 }),
+      rf(16, 2, 0,  0, "BAR 2, beat 1: the root again: the break answers itself.", { group:4, fing:1, hl:true }),
+      rf(18, 1, 0,  0, "'&': GHOST NOTE (dead note): a muted thump keeps the 16th-note shout alive between pitched notes.", { group:4, ghost:true }),
+      rf(19, 1, 3,  0, "'a': 'Mo', pinky (4).", { group:4, fing:4 }),
+      rf(20, 1, 5,  1, "Beat 2: 'Fa', index (1).", { group:5, fing:1 }),
+      rf(21, 1, 6,  1, "'e': 'Fi' (blue note), middle (2).", { group:5, fing:2 }),
+      rf(22, 2, 7,  1, "'&': 'Sol' held, ring (3): a short breath before the climb.", { group:5, fing:3 }),
+      rf(24, 2, 10, 2, "Beat 3: 'Toh' (\u266D7) on the D string, index (1): the peak of the first half.", { group:6, fing:1, hl:true }),
+      rf(26, 2, 12, 2, "'&': the OCTAVE 'Do', ring (3): the highest point of the break.", { group:6, fing:3, hl:true }),
+      rf(28, 1, 10, 2, "Beat 4: 'Toh' again: down from the octave.", { group:7, fing:1 }),
+      rf(29, 1, 7,  1, "'e': 'Sol'.", { group:7, fing:3 }),
+      rf(30, 1, 3,  0, "'&': 'Mo': the last passing step.", { group:7, fing:4 }),
+      rf(31, 1, 0,  0, "'a': a dead root (\u00D7): the groove loops with a percussive punch before the next 'Do'.", { group:7, ghost:true })
+    ];
+    return relSteps(lowEIdx(), specs, false);
+  }
+
+  // Classic Funk Slap Groove: heavy thumb slaps on 'Do', ghost-note dead pops on the upper octaves.
+  function buildFunkSlapLesson(){
+    const T = { rh:"T", rhf:"" }, P = { rh:"P", rhf:"i" };
+    function o(base, extra){ const r = {}; Object.keys(base).forEach(function(k){ r[k] = base[k]; }); Object.keys(extra).forEach(function(k){ r[k] = extra[k]; }); return r; }
+    const specs = [
+      rf(0,  3, 0,  0, "BAR 1, beat 1: THUMB SLAP on 'Do' (the root), locked with the kick. Strike with the thumb's side-bone: this is the heaviest note of the groove.", o(T, { group:0, fing:1, hl:true })),
+      rf(3,  1, 12, 2, "'a': DEAD POP on the upper octave: muted, pitchless 'chk' from the index finger. Rest the fretting finger, snap the string.", o(P, { group:0, ghost:true })),
+      rf(4,  2, 12, 2, "Beat 2 (snare): the real OCTAVE POP, ring (3), index hooks under the string and snaps it. It cracks right on the snare.", o(P, { group:1, fing:3, hl:true })),
+      rf(6,  1, 0,  0, "'&': slap 'Do' again with the second kick: thumb bounces back to the low string.", o(T, { group:1, fing:1 })),
+      rf(7,  1, 12, 2, "'a': dead pop on the octave: the right hand never stops moving.", o(P, { group:1, ghost:true })),
+      rf(8,  1, 10, 2, "Beat 3: POP the \u266D7 'Toh' (Li) on the D string, on the SAME fret as the root, index (1): high strings get the pop.", o(P, { group:2, fing:1 })),
+      rf(9,  1, 0,  0, "'e': slap 'Do' with the kick: root and \u266D7 trade places.", o(T, { group:2, fing:1 })),
+      rf(10, 2, 12, 2, "'&' (snare): OCTAVE POP again: the same leap, tighter.", o(P, { group:2, fing:3, hl:true })),
+      rf(12, 1, 24, 3, "Beat 4: DEAD POP on the double octave (highest string): an airy, percussive tick.", o(P, { group:3, ghost:true })),
+      rf(13, 1, 12, 2, "'e': dead pop on the octave.", o(P, { group:3, ghost:true })),
+      rf(14, 1, 0,  0, "'&': slap 'Do' on the last kick of the bar.", o(T, { group:3, fing:1 })),
+      rf(15, 1, 7,  1, "'a': slap the 5th 'Sol' as a pick-up into bar 2.", o(T, { group:3, fing:3 })),
+      rf(16, 3, 0,  0, "BAR 2, beat 1: THUMB SLAP 'Do': the groove restarts heavy.", o(T, { group:4, fing:1, hl:true })),
+      rf(19, 1, 12, 2, "'a': dead pop on the upper octave.", o(P, { group:4, ghost:true })),
+      rf(20, 2, 12, 2, "Beat 2 (snare): OCTAVE POP.", o(P, { group:5, fing:3, hl:true })),
+      rf(22, 1, 24, 3, "'&': dead pop on the double octave: the setup for the big pop.", o(P, { group:5, ghost:true })),
+      rf(23, 1, 24, 3, "'a': DOUBLE-OCTAVE POP: the real note, two octaves above 'Do' on the highest string. The hand shifts up for it.", o(P, { group:5, hl:true })),
+      rf(24, 1, 10, 2, "Beat 3: pop 'Toh' (\u266D7), same fret as the root.", o(P, { group:6, fing:1 })),
+      rf(25, 1, 7,  1, "'e': slap the 5th 'Sol'.", o(T, { group:6, fing:3 })),
+      rf(26, 2, 12, 2, "'&' (snare): OCTAVE POP.", o(P, { group:6, fing:3, hl:true })),
+      rf(28, 1, 24, 3, "Beat 4: dead pop, double octave.", o(P, { group:7, ghost:true })),
+      rf(29, 1, 12, 2, "'e': dead pop, octave.", o(P, { group:7, ghost:true })),
+      rf(30, 1, 0,  0, "'&': slap 'Do' on the kick.", o(T, { group:7, fing:1 })),
+      rf(31, 1, 0,  0, "'a': DEAD SLAP on 'Do' (\u00D7): a muted thump leads the loop back to the heavy one.", o(T, { group:7, ghost:true }))
+    ];
+    return relSteps(lowEIdx(), specs, false);
+  }
+
+  // Pop / Afrobeats Steady Pocket: sub-heavy, minimalist root-note focus on the lowest string.
+  function buildAfropopLesson(){
+    const caps = [
+      "BAR 1, beat 1: the ROOT on the LOWEST string, the sub-bass register. Pluck it with the pad of the finger, close to the neck, for a round, deep tone.",
+      "'a' of 1: the same root, short. It lands on the second kick of the 3-3-4-3-3 pattern.",
+      "'e' of 2: the root again, held longer: this note carries the pocket.",
+      "'&' of 3: root on the fourth kick: notice how few different notes we play.",
+      "'a' of 4: root, short: it leans into the next bar.",
+      "BAR 2, beat 1: root: the one is always heavy.",
+      "'a': root, short.",
+      "'e' of 2: root held, the same pocket as bar 1.",
+      "'&' of 3: root on the kick.",
+      "'a' of 4: the 5th 'Sol' (one string up, two frets over) as the only melodic step of the loop: a tiny turnaround, then straight back to the root."
+    ];
+    const ticks = [[0,3],[3,3],[6,4],[10,3],[13,3],[16,3],[19,3],[22,4],[26,3],[29,3]];
+    const specs = ticks.map(function(t, i){
+      const five = (i === ticks.length - 1);
+      return rf(t[0], t[1], five ? 7 : 0, five ? 1 : 0, caps[i], { group:(i < 5 ? 0 : 1), fing:(five ? 3 : 1), hl:(i === 0 || i === 5) });
+    });
+    return relSteps(0, specs, false);
+  }
+
   // ---------- Lesson catalog (Topic Menu) ----------
   const LESSON_CATALOG = [
     { category:"Category 1: Fretboard Navigation Foundations", lessons:[
@@ -4756,7 +5329,10 @@
         takeaway:"Root, 5th (up 1 string, over 2), octave (up 2 strings, over 2): your cornerstone anchor." },
       { id:"chromatic", title:"Chromatic Connectors", build:buildChromaticLesson, unitScale:0.8,
         desc:"Four adjacent frets, one finger per fret, make a 4-fret span of half-steps. Connectors let you walk between chord tones, and a half-step approach from above or below pulls the ear into the target note.",
-        takeaway:"Half-step approaches, from below or above, connect any two notes." }
+        takeaway:"Half-step approaches, from below or above, connect any two notes." },
+      { id:"unison", title:"String-to-String Distance Vectors (The Unison Geometry Guide)", build:buildUnisonLesson, unitScale:1.5,
+        desc:"The same pitch appears on every neighbouring string, and the distance never changes: ONE string down is FIVE frets back (C on the A string fret 3 is the same C on the E string fret 8), and ONE string up is FIVE frets forward. Translucent arrows are projected on the neck so you can follow the path instead of doing the arithmetic. Tap any fret, in any mode, to see its arrows.",
+        takeaway:"Down 1 string = back 5 frets. Up 1 string = forward 5 frets. Follow the arrow." }
     ]},
     { category:"Category 2: Scale & Mode Matrix Mastery", lessons:[
       { id:"ionian3nps", title:"Major Scale (Ionian) 3-Notes-Per-String", build:buildIonianLesson, unitScale:0.8,
@@ -4845,6 +5421,24 @@
       { id:"darkchords", title:"Low-B Dark Chord Inversions (5-String Adaptation)", build:buildDarkChordLesson, unitScale:1.6,
         desc:"Dark minor chord voicings in the lowest register: a wide root position, two inversions, a minor 7th and a half-diminished chord, all fretted with barres and stretches. They are built for the low B string of a 5-string bass; on a 4-string the same shapes begin on the low E string.",
         takeaway:"In the low register, spread or invert the chord: thick close voicings turn to mud." }
+    ]},
+    { category:"Category 10: Multi-Genre Global Riffs (Synchronized Drums)", lessons:[
+      { id:"riffhighlife", title:"Nigerian Highlife Progression", build:buildHighlifeLesson,
+        drums:{ pattern:"highlife", bpm:108, bars:2, loops:4, name:"Afro-beat kick" },
+        desc:"Root-to-5th bouncing lines through steady major triads (I, IV, V, I), played over a steady Afro-beat kick. The bass and the drum loop run on one shared clock: every root lands on the kick, every bounce on the hi-hat. The loop repeats four times.",
+        takeaway:"Root, 5th, 3rd, 5th: one bouncing triad shape that slides to the IV and the V, locked to the kick." },
+      { id:"riffgospel", title:"Gospel Shout Bass Break", build:buildGospelLesson,
+        drums:{ pattern:"gospel", bpm:128, bars:2, loops:6, name:"uptempo shout beat" },
+        desc:"A fast, syncopated minor-pentatonic and blues run that leans on 'Mo' (the minor 3rd) and 'Toh' (the flat 7th) as passing steps, with the blue note 'Fi' between the 4th and the 5th, over an uptempo shout beat. Six loops, 128 BPM.",
+        takeaway:"Do, Mo, Fa, Fi, Sol, Toh: pass through the blue notes, land on the beat." },
+      { id:"rifffunkslap", title:"Classic Funk Slap Groove", build:buildFunkSlapLesson, rhMode:"slap",
+        drums:{ pattern:"funk", bpm:98, bars:2, loops:5, name:"Funk loop" },
+        desc:"Heavy thumb slaps on 'Do' with rhythmic ghost-note dead pops on the upper octaves, over the Funk drum loop. Orange T = thumb slap, teal P = index pop; the muted pops are shown as \u00D7. The octave pops crack on the snare; the double-octave pop is the surprise.",
+        takeaway:"Slap 'Do' on the kick, pop the octave on the snare, ghost the rest: the right hand never stops." },
+      { id:"riffafropop", title:"Pop/Afrobeats Steady Pocket", build:buildAfropopLesson,
+        drums:{ pattern:"afropop", bpm:102, bars:2, loops:6, name:"syncopated Afrobeats loop" },
+        desc:"Sub-heavy, minimalist and root-note focused: the bass sits on the lowest string and locks to the 3-3-4-3-3 kick of a contemporary Afrobeats loop. The drive comes from note length and placement, not from notes. Six loops, 102 BPM.",
+        takeaway:"Play fewer notes, place them exactly on the kick, and let the length of each note make the pocket." }
     ]}
   ];
 
@@ -4894,6 +5488,10 @@
     L.meta = meta;
     L.steps = meta.build();
     finalizeHands(L.steps, meta);
+    L.loop = 0; L.tick = 0; L.riffDone = false; L.tickMap = {};
+    L.steps.forEach(function(st, i){ if(st.tick !== undefined) L.tickMap[st.tick] = i; });
+    state.vectors.sel = null;
+    if(meta.id === "unison") setVectors(true);   // the geometry lesson always projects its arrows
     L.idx = -1;
     L.anchor = null;
     for(let i = 0; i < L.steps.length && !L.anchor; i++){
@@ -4917,6 +5515,7 @@
     const L = state.learn;
     const st = L.steps[i];
     const strings = activeStrings();
+    state.vectors.sel = null;
     let glide;
     if(st.slide && i > 0){
       const p = L.steps[i-1];
@@ -4936,7 +5535,7 @@
     const btn = document.getElementById("learnPlayBtn");
     if(!btn) return;
     if(L.playing) btn.textContent = "Pause";
-    else if(L.steps.length > 0 && L.idx >= L.steps.length - 1) btn.textContent = "Replay";
+    else if(L.steps.length > 0 && L.idx >= L.steps.length - 1 && (!L.meta || !L.meta.drums || L.riffDone)) btn.textContent = "Replay";
     else if(L.idx >= 0) btn.textContent = "Resume";
     else btn.textContent = "Play";
   }
@@ -4960,9 +5559,52 @@
     L.timeoutId = setTimeout(learnAdvance, learnStepDuration(L.steps[next]));
   }
 
+  // ---------- Riff autopilot: bass + drums on ONE shared 16th-note clock ----------
+  function riffTickMs(){
+    const d = state.learn.meta.drums;
+    return 60000 / d.bpm / 4 / state.learn.speed;
+  }
+  function playRiff(){
+    const L = state.learn, d = L.meta.drums;
+    if(L.riffDone || (L.idx >= L.steps.length - 1 && L.loop >= d.loops - 1)){
+      L.idx = -1; L.loop = 0; L.tick = 0; L.riffDone = false;
+    } else {
+      const next = L.idx + 1;
+      if(next >= L.steps.length){ L.tick = 0; L.loop++; }
+      else L.tick = (L.steps[next].tick !== undefined) ? L.steps[next].tick : 0;
+    }
+    L.playing = true;
+    L.nextAt = performance.now();
+    updateLearnPlayBtn();
+    riffTick();
+  }
+  function riffTick(){
+    const L = state.learn;
+    if(!L.playing || !L.meta || !L.meta.drums) return;
+    const d = L.meta.drums, total = d.bars*16, t = L.tick;
+    playDrumStep(d.pattern, t % 16);
+    const i = L.tickMap[t];
+    if(i !== undefined){
+      L.idx = i;
+      triggerLearnStep(i);
+      renderLearnPanel();
+      renderFretboard();
+    }
+    L.tick++;
+    let finished = false;
+    if(L.tick >= total){
+      L.tick = 0; L.loop++;
+      if(L.loop >= d.loops){ finished = true; L.loop = d.loops - 1; }
+    }
+    L.nextAt += riffTickMs();
+    const delay = Math.max(0, L.nextAt - performance.now());
+    L.timeoutId = setTimeout(finished ? function(){ L.riffDone = true; finishLearn(); } : riffTick, delay);
+  }
+
   function playLearn(){
     const L = state.learn;
     if(L.playing || !L.steps.length) return;
+    if(L.meta && L.meta.drums){ playRiff(); return; }
     if(L.idx >= L.steps.length - 1) L.idx = -1;
     L.playing = true;
     updateLearnPlayBtn();
@@ -5052,7 +5694,8 @@
     document.getElementById("learnLessonCard").innerHTML =
       '<div class="learn-title">' + meta.title + '</div>' +
       '<div class="learn-meta">' + meta.category + ' &middot; Key: ' + state.key + (state.keyMode === "auto" ? ' (Auto)' : '') +
-      ' &middot; Notation: ' + (state.notation === "solfa" ? 'Tonic Solfa' : 'Alphabet') + ' &middot; ' + strings.length + '-string bass</div>' +
+      ' &middot; Notation: ' + (state.notation === "solfa" ? 'Tonic Solfa' : 'Alphabet') + ' &middot; ' + strings.length + '-string bass' +
+      (meta.drums ? ' &middot; Drums: ' + meta.drums.name + ' @ ' + meta.drums.bpm + ' BPM &middot; Loop ' + Math.min(L.loop + 1, meta.drums.loops) + ' / ' + meta.drums.loops : '') + '</div>' +
       '<p class="learn-desc">' + meta.desc + '</p>' + capHtml +
       '<div class="learn-legend">Vector hand guide: a ghost hand glides along the neck, one finger per fret. ' +
       '<span class="lg lg-f1">1 Index</span><span class="lg lg-f2">2 Middle</span><span class="lg lg-f3">3 Ring</span><span class="lg lg-f4">4 Pinky</span> ' +
@@ -5100,6 +5743,7 @@
     m.className = "marker";
     const isGhost = st.ghost && entry.kind !== "anchor";
     m.textContent = isGhost ? "\u00D7" : nt.label;
+    if(!isGhost && nt.label.indexOf(" / ") !== -1) m.classList.add("dual");
     if(entry.kind === "current"){
       m.classList.add("learn-current");
     } else if(entry.kind === "anchor"){
@@ -5599,8 +6243,8 @@
     g.setAttribute("aria-expanded", "false");
   }
 
-  const STRATEGY_NAMES = { hunter:"Syllable Note Hunter", matrix:"Full Scale Matrix Mapping", interval:"Interval Vector Flashcard" };
-  const GENRE_NAMES = { funk:"Funk Groove", jazz:"Walking Jazz", boombap:"Boom-Bap Hip Hop" };
+  const STRATEGY_NAMES = { hunter:"Syllable Note Hunter", matrix:"Full Scale Matrix Mapping", interval:"Interval Vector Flashcard", laser:"Single String Laser Focus" };
+  const GENRE_NAMES = { funk:"Funk Groove", jazz:"Walking Jazz", boombap:"Boom-Bap Hip Hop", highlife:"Nigerian Highlife", gospel:"Gospel Shout", afropop:"Afrobeats Pocket" };
   // One-line objective pinned to the top edge of the viewport.
   function updateHudBanner(){
     const el = document.getElementById("hudBanner");
@@ -5612,7 +6256,8 @@
       t = "Groove Sandbox \u2014 " + (GENRE_NAMES[state.groove.genre] || "Groove") + " at " + state.groove.bpm + " BPM";
     } else {
       const fm = FOCUS_MODE_META[state.focusMode];
-      t = (STRATEGY_NAMES[state.strategy] || "Training") + " \u2014 " + (fm ? fm.name : "") + " in " + state.key;
+      t = (STRATEGY_NAMES[state.strategy] || "Training") + " \u2014 " + (fm ? fm.name : "") + " in " + state.key +
+          ((state.strategy === "laser" && state.challenge && state.challenge.stringName) ? " \u2014 " + state.challenge.stringName + " string" : "");
     }
     el.textContent = "Active: " + t;
   }
@@ -5644,6 +6289,7 @@
     populateLessonSelect();
     wireControls();
     wireZoom();
+    bindVecToggles(document.getElementById("vecToggleDeck").parentNode);
     renderDashboard();
     generateChallenge();
   }
