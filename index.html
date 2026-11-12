@@ -758,6 +758,19 @@
   }
   .rh-toggle-btn.on{color:#f3f1ff; background:linear-gradient(180deg,var(--accent-violet),#4b3d99);}
   .rh-toggle-btn:hover{filter:brightness(1.15);}
+  /* Freestyle Jam: toggle button + hide every note / solfa badge, tooltip and popup on the neck */
+  .freestyle-btn{
+    border:1px solid var(--accent-cyan); background:rgba(36,47,71,0.8); color:var(--text-dim);
+    border-radius:8px; padding:6px 13px; font-size:12px; font-weight:800; letter-spacing:0.6px; cursor:pointer;
+    white-space:nowrap;
+  }
+  .freestyle-btn.on{color:#04211f; background:linear-gradient(180deg,var(--accent-cyan),#1a8f8f);}
+  .freestyle-btn:hover{filter:brightness(1.15);}
+  body.freestyle-mode #fretboard .marker,
+  body.freestyle-mode #fretboard .marker-tooltip,
+  body.freestyle-mode .note-dropdown,
+  body.freestyle-mode #vectorRig,
+  body.freestyle-mode .pivot-toast{display:none !important;}
   .hud-mini-rh{display:flex; align-items:stretch;}
   .hud-mini-rh .rh-toggle-btn{min-height:38px; padding:8px 12px; font-size:12px;}
 
@@ -1460,6 +1473,17 @@
   .ai-input button{min-height:42px; border:none; border-radius:10px; padding:0 14px; font-weight:800; cursor:pointer;}
   #aiSendBtn{background:linear-gradient(180deg,var(--accent-cyan),#1a8f8f); color:#04211f;}
   #aiMicBtn{background:rgba(36,47,71,0.9); color:var(--text-main); border:1px solid var(--line);}
+  #aiAttachBtn{background:rgba(36,47,71,0.9); color:var(--text-main); border:1px solid var(--line); padding:0 10px; font-size:16px;}
+  .ai-attach-pill{display:flex; align-items:center; gap:8px; align-self:flex-start; margin:0 12px 6px; padding:4px 6px 4px 4px; max-width:calc(100% - 24px);
+    border:1px solid var(--line); border-radius:999px; background:rgba(36,47,71,0.92); color:var(--text-main); font-size:12px;}
+  .ai-attach-pill[hidden]{display:none;}
+  .ai-attach-pill img{width:34px; height:34px; border-radius:8px; object-fit:cover; flex:none;}
+  .ai-att-ico{flex:none; min-width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:8px; background:rgba(110,231,255,0.18); font-weight:800; font-size:11px;}
+  .ai-att-name{max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .ai-att-x{flex:none; width:22px; height:22px; border:none; border-radius:50%; background:rgba(255,255,255,0.14); color:inherit; font-size:15px; line-height:1; cursor:pointer;}
+  .ai-att-x:hover{background:rgba(255,120,120,0.45);}
+  .ai-att-bubble{margin-top:6px; font-size:12px; opacity:.9;}
+  .ai-att-bubble img{display:block; max-width:100%; max-height:140px; border-radius:8px;}
   #aiMicBtn.listening{background:#7a3040; color:#fff;}
   /* ---------- Floating live tab (Fullscreen Focus View + AI split screen): lives in the empty space, never moves the neck ---------- */
   .hud-tab{display:none;}
@@ -1676,7 +1700,10 @@
   </div>
   <div class="ai-log" id="aiLog" aria-live="polite"></div>
   <div class="ai-chips" id="aiChips"></div>
+  <div class="ai-attach-pill" id="aiAttachPill" hidden></div>
   <div class="ai-input">
+    <button id="aiAttachBtn" type="button" title="Attach a tab screenshot, chord chart, PDF or text file" aria-label="Attach file">&#128206;</button>
+    <input type="file" id="aiFileInput" accept="image/*,.pdf,.txt" hidden>
     <textarea id="aiInput" rows="1" placeholder="e.g. Show me an F minor 7th chord" aria-label="Ask Professor Bass"></textarea>
     <button id="aiMicBtn" title="Speak your question" aria-label="Voice input">&#127908;</button>
     <button id="aiSendBtn">Send</button>
@@ -1853,6 +1880,7 @@
         </span>
       </span>
       <button class="rh-toggle-btn on" id="rhToggleBar" type="button" aria-pressed="true" title="Show or hide the illustrated right-hand plucking, slap and pop rig over the pickups">RH: ON</button>
+      <button class="freestyle-btn" id="freestyleBtn" type="button" aria-pressed="false" title="Jam by ear: tap any fret to hear it and see the hands, with no note names or Solfa labels on the neck">Freestyle: OFF</button>
       <span class="view-toolbar-hint">Works in every mode: Training, Groove Sandbox and Watch &amp; Learn</span>
     </div>
     <div class="challenge-panel" id="challengePanel">
@@ -4477,7 +4505,33 @@
     if(openDropdown){ openDropdown.remove(); openDropdown = null; }
   }
 
+  /* ---------- Freestyle Jam: sound + hands + string vibration only, no labels, markers or popups ---------- */
+  const FREESTYLE = { on:false };
+  function setFreestyle(on){
+    FREESTYLE.on = !!on;
+    document.body.classList.toggle("freestyle-mode", FREESTYLE.on);
+    document.querySelectorAll(".freestyle-btn").forEach(function(b){
+      b.classList.toggle("on", FREESTYLE.on);
+      b.textContent = "Freestyle: " + (FREESTYLE.on ? "ON" : "OFF");
+      b.setAttribute("aria-pressed", FREESTYLE.on ? "true" : "false");
+    });
+    closeDropdown();
+    const pt = document.getElementById("pivotToast"); if(pt) pt.classList.remove("show");
+  }
+  function freestyleTap(e){
+    e.stopPropagation();
+    closeDropdown();
+    const cell = e.currentTarget;
+    const s = parseInt(cell.dataset.string, 10), f = parseInt(cell.dataset.fret, 10);
+    playTone(freqAt(activeStrings()[s], f));   // WebAudioFont bass sample
+    handFreeShow(s, f);                        // right-hand strike + string vibration + fretting-hand pose
+    updateHandOverlay();
+  }
+  document.querySelectorAll(".freestyle-btn").forEach(function(b){
+    b.addEventListener("click", function(ev){ ev.stopPropagation(); setFreestyle(!FREESTYLE.on); });
+  });
   function onCellClick(e){
+    if(FREESTYLE.on){ freestyleTap(e); return; }
     vectorsOnCell(e.currentTarget);
     if(state.workstationMode === "sandbox"){
       handleSandboxCellClick(e);
@@ -8937,8 +8991,12 @@
   function aiGeminiBody(q, rawMode){
     const contents = [];
     if(!rawMode) AI.history.slice(-8).forEach(function(h){ contents.push({ role:h.role, parts:[{ text:h.text }] }); });
-    contents.push({ role:"user", parts:[{ text:q }] });
-    return { system_instruction:{ parts:[{ text:rawMode ? "Reply briefly." : aiSystemPrompt() }] }, contents:contents, generationConfig:{ temperature:0.6, maxOutputTokens:2048 } };
+    const parts = [{ text:q }];
+    const att = rawMode ? null : AI.sendAttach;
+    if(att) parts.unshift({ inline_data:{ mime_type:att.mime, data:att.data } });   // image / PDF / text goes first, then the question
+    contents.push({ role:"user", parts:parts });
+    const sys = rawMode ? "Reply briefly." : aiSystemPrompt() + (att ? "\n\nATTACHMENT: the user attached a file (" + att.name + "). Read it carefully: it is probably bass tab, a chord chart, a scale diagram or sheet music. Explain what it shows in plain language, then demonstrate the main idea on the fretboard with a <BOARD_CMD> block." : "");
+    return { system_instruction:{ parts:[{ text:sys }] }, contents:contents, generationConfig:{ temperature:0.6, maxOutputTokens:2048 } };
   }
   async function aiGemini(q, rawMode){
     const key = AI.key;
@@ -9669,12 +9727,67 @@
   function aiTidy(t){
     return String(t).replace(/^\s*#{1,6}\s*/gm, "").replace(/^\s*[*\-]\s+/gm, "\u2022 ").replace(/`+/g, "").replace(/\*\*\*/g, "**");
   }
+  /* ---------- Attachments (image / PDF / .txt) for Gemini multimodal ---------- */
+  const AI_ATTACH_DEFAULT_PROMPT = "Analyze this uploaded bass music material, explain it clearly, and demonstrate it on the fretboard using <BOARD_CMD>.";
+  const AI_ATTACH_MAX = 12 * 1024 * 1024;
+  AI.attach = null; AI.sendAttach = null;
+  function aiAttachRender(){
+    const pill = document.getElementById("aiAttachPill");
+    if(!pill) return;
+    const a = AI.attach;
+    pill.innerHTML = "";
+    pill.hidden = !a;
+    if(!a) return;
+    if(a.mime.indexOf("image/") === 0){
+      const im = document.createElement("img"); im.src = a.url; im.alt = ""; pill.appendChild(im);
+    } else {
+      const ic = document.createElement("span"); ic.className = "ai-att-ico"; ic.textContent = a.mime === "application/pdf" ? "PDF" : "TXT"; pill.appendChild(ic);
+    }
+    const nm = document.createElement("span"); nm.className = "ai-att-name"; nm.textContent = a.name; pill.appendChild(nm);
+    const x = document.createElement("button");
+    x.type = "button"; x.className = "ai-att-x"; x.setAttribute("aria-label", "Remove attachment"); x.textContent = "\u00D7";
+    x.addEventListener("click", function(){ AI.attach = null; aiAttachRender(); });
+    pill.appendChild(x);
+  }
+  function aiAttachFile(file){
+    if(!file) return;
+    let mime = file.type || "";
+    if(!mime && /\.pdf$/i.test(file.name)) mime = "application/pdf";
+    if(!mime && /\.txt$/i.test(file.name)) mime = "text/plain";
+    if(!(mime.indexOf("image/") === 0 || mime === "application/pdf" || mime === "text/plain")){
+      aiAddMsg("ai", aiEsc("I can read images, PDFs and .txt files. That file type is not supported."));
+      return;
+    }
+    if(file.size > AI_ATTACH_MAX){
+      aiAddMsg("ai", aiEsc("That file is over 12 MB. Please attach a smaller screenshot or crop it."));
+      return;
+    }
+    const fr = new FileReader();
+    fr.onload = function(){
+      const url = String(fr.result || "");
+      const comma = url.indexOf(",");
+      if(comma < 0) return;
+      AI.attach = { name:file.name || "attachment", mime:mime, data:url.slice(comma + 1), url:url };   // data = base64 only
+      aiAttachRender();
+      const inp = document.getElementById("aiInput"); if(inp) inp.focus();
+    };
+    fr.onerror = function(){ aiAddMsg("ai", aiEsc("I could not read that file. Please try again.")); };
+    fr.readAsDataURL(file);
+  }
+  function aiAttachBubble(a){
+    if(!a) return "";
+    if(a.mime.indexOf("image/") === 0) return '<div class="ai-att-bubble"><img src="' + a.url + '" alt=""></div>';
+    return '<div class="ai-att-bubble">\uD83D\uDCCE ' + aiEsc(a.name) + '</div>';
+  }
   async function aiSend(text){
     const input = document.getElementById("aiInput");
-    const q = (text !== undefined ? text : input.value).trim();
-    if(!q) return;
+    const att = AI.attach;
+    let q = (text !== undefined ? text : input.value).trim();
+    if(!q && !att) return;
+    if(!q) q = AI_ATTACH_DEFAULT_PROMPT;
     input.value = "";
-    aiAddMsg("user", aiEsc(q));
+    AI.sendAttach = att; AI.attach = null; aiAttachRender();
+    aiAddMsg("user", aiEsc(q) + aiAttachBubble(att));
     AI.lastQuery = q;
     let reason = "";
     const thinkingHtml = '<span class="ai-thinking">Professor Bass is thinking<i>.</i><i>.</i><i>.</i></span>';
@@ -9712,6 +9825,7 @@
         }
       }
     }
+    if(att && !AI.key) reason = "Reading attached files needs a Gemini API key (open the API button to add one).";
     let res;
     try{ res = aiOfflineAnswer(q); }
     catch(err){ res = { text:"Something went wrong while I was working that out. Please try rephrasing: for example 'show me a C major 7th chord'." }; }
@@ -9772,6 +9886,16 @@
     document.getElementById("aiToggleBtn").addEventListener("click", function(){ aiOpen(!document.getElementById("aiDrawer").classList.contains("open")); });
     document.getElementById("aiCloseBtn").addEventListener("click", function(){ aiOpen(false); });
     document.getElementById("aiSendBtn").addEventListener("click", function(){ aiSend(); });
+    (function(){
+      const ab = document.getElementById("aiAttachBtn"), fi = document.getElementById("aiFileInput"), ta = document.getElementById("aiInput");
+      if(!ab || !fi) return;
+      ab.addEventListener("click", function(){ fi.click(); });
+      fi.addEventListener("change", function(){ aiAttachFile(fi.files && fi.files[0]); fi.value = ""; });
+      ta.addEventListener("paste", function(e){
+        const items = (e.clipboardData && e.clipboardData.files) || [];
+        if(items.length && items[0].type && items[0].type.indexOf("image/") === 0){ e.preventDefault(); aiAttachFile(items[0]); }
+      });
+    })();
     document.getElementById("aiInput").addEventListener("keydown", function(e){
       if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); aiSend(); }
     });
