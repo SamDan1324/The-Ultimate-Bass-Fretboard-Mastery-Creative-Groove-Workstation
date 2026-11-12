@@ -769,7 +769,17 @@
   .hand-img.ready{visibility:visible;}
   .hand-img.bad{display:none !important;}
   .hand-img.lh-img{z-index:4;}
-  .hand-img.rh-img{z-index:6;}
+  .hand-img.rh-img{z-index:6;
+    -webkit-mask-image:linear-gradient(to bottom, transparent 0%, #000 22%, #000 100%);
+            mask-image:linear-gradient(to bottom, transparent 0%, #000 22%, #000 100%);}   /* soft wrist fade (wrist = top edge of the art) */
+  .hx-target{position:absolute; left:0; top:0; z-index:3; width:34px; height:34px; border-radius:50%; pointer-events:none;
+    transform:translate(-50%,-50%); opacity:0; border:2px solid rgba(110,231,255,.95);
+    background:radial-gradient(circle, rgba(110,231,255,.30) 0%, rgba(110,231,255,.10) 55%, rgba(110,231,255,0) 72%);
+    box-shadow:0 0 12px 3px rgba(110,231,255,.55), inset 0 0 8px rgba(110,231,255,.45);
+    transition-property:left,top,opacity; transition-duration:.28s; transition-timing-function:cubic-bezier(.4,0,.2,1);}
+  .hx-target.on{opacity:.9; animation:hxTargetPulse 1.4s ease-in-out infinite;}
+  @keyframes hxTargetPulse{0%,100%{box-shadow:0 0 10px 2px rgba(110,231,255,.45), inset 0 0 7px rgba(110,231,255,.35);}
+                           50%{box-shadow:0 0 18px 6px rgba(110,231,255,.75), inset 0 0 11px rgba(110,231,255,.6);}}
   .hx-pill{position:absolute; z-index:14; padding:3px 10px; border-radius:12px; border:1.6px solid #fff; color:#fff;
     font:800 10.5px/1.1 'Segoe UI',system-ui,sans-serif; letter-spacing:.3px; white-space:nowrap; pointer-events:none;
     transform:translate(-50%,-50%) scale(var(--hxk,1)); opacity:0; transition:opacity .18s ease;
@@ -789,7 +799,7 @@
   .hx-trail{position:absolute; z-index:5; height:10px; border-radius:5px; transform-origin:0 50%; pointer-events:none; opacity:0;}
   .hx-trail.go{animation:hxTrail .7s ease-out forwards;}
   @keyframes hxTrail{0%{opacity:.95;} 100%{opacity:0;}}
-  @media (prefers-reduced-motion: reduce){ .hand-img{transition:none !important;} .hx-ring.go,.hx-trail.go{animation-duration:.01s;} }
+  @media (prefers-reduced-motion: reduce){ .hand-img,.hx-target{transition:none !important;} .hx-target.on{animation:none;} .hx-ring.go,.hx-trail.go{animation-duration:.01s;} }
   body.immersive-mode .hud-mini .hud-mini-group{max-width:none;}
 
   /* ---------- Tap-to-Edit knob popover ---------- */
@@ -993,6 +1003,17 @@
     -webkit-backdrop-filter:blur(6px);
   }
   body.immersive-mode .view-toolbar .btn{padding:8px 12px; font-size:12px; min-height:36px; white-space:nowrap;}
+  /* Fullscreen Exit: pinned top-right, above the bottom dock (Settings / transport / tools). backdrop-filter on the
+     toolbar would turn it into the containing block for fixed children, so it is switched off here. */
+  body.immersive-mode .view-toolbar{backdrop-filter:none; -webkit-backdrop-filter:none;}
+  body.immersive-mode #immersiveBtn{
+    position:fixed;
+    top:calc(56px + env(safe-area-inset-top,0px));
+    right:calc(14px + env(safe-area-inset-right,0px));
+    bottom:auto; left:auto;
+    z-index:9999;
+    box-shadow:0 4px 16px rgba(0,0,0,0.5);
+  }
   body.immersive-mode .view-toolbar .hand-toggle-wrap{gap:6px; font-size:11px; white-space:nowrap;}
   body.immersive-mode .view-toolbar .hand-toggle-wrap .toggle-row button{padding:8px 10px; min-height:36px; font-size:11px;}
   .lbl-short{display:none;}
@@ -3821,14 +3842,17 @@
   })();
   const HX_CFG = {
     rhW: 0.8,                                  // right-hand width as a fraction of the string span (pickup width)
-    rhRot: { h:0, v:90 },                      // degrees: horizontal neck / vertical neck
+    rhScale: 1.4,                              // extra size multiplier (1.35 - 1.45) so the fingers span all 4/5 strings
+    rhRot: { h:-90, v:-90 },                   // forearm enters from the LEFT, fingers point RIGHT (art: wrist top, fingers down)
+    rhFlip: false,                             // set true if the thumb lands on the wrong (lower) side of the pickups
+    rhNudge: { along:0, cross:0 },             // px nudge of the whole right hand (along the neck / across the strings)
     rhTip: { idle:{x:0.50,y:0.80}, index:{x:0.60,y:0.90}, middle:{x:0.42,y:0.90}, slap:{x:0.50,y:0.88} },
     lhRot: { h:-90, v:0 },
     lhTip: { idle:{x:0.86,y:0.50}, "1":{x:0.90,y:0.30}, "2":{x:0.92,y:0.42}, "3":{x:0.92,y:0.56}, "4":{x:0.90,y:0.70} },
     lhHoldMs: 900
   };
   const HX = { pills:{}, ptimers:{}, rings:{}, trail:null };
-  const LHX = { img:null, key:"", geom:"", placed:false, nonce:0, nextLink:"", prevTip:null, holdT:0, shown:false };
+  const LHX = { img:null, target:null, key:"", geom:"", placed:false, nonce:0, nextLink:"", prevTip:null, holdT:0, shown:false };
 
   const r1 = function(n){ return n.toFixed(1); };
   function reducedMotion(){
@@ -3888,6 +3912,18 @@
   function lhxHide(){
     if(LHX.img) LHX.img.style.display = "none";
     LHX.shown = false;
+    if(LHX.target) LHX.target.classList.remove("on");
+  }
+  // Glowing fingertip target ring on the exact (string, fret) point of the active note.
+  function lhxTarget(x, y, on, snap){
+    const layer = hxLayer(); if(!layer) return;
+    let el = LHX.target;
+    if(!el){ el = document.createElement("div"); el.className = "hx-target"; layer.appendChild(el); LHX.target = el; }
+    const d = r1(34*hxScale()) + "px";
+    el.style.width = d; el.style.height = d;
+    el.style.transitionDuration = snap ? "0s" : ".28s";
+    el.style.left = r1(x) + "px"; el.style.top = r1(y) + "px";
+    el.classList.toggle("on", !!on);
   }
   function lhxSetSrc(file){
     if(LHX.img.getAttribute("src") !== file) LHX.img.setAttribute("src", file);
@@ -3925,6 +3961,7 @@
     const o = orient(LABEL_GUTTER + tipA, CROSS_PAD + tipC);
     const a = HX_CFG.lhTip[pose] || HX_CFG.lhTip.idle;
     const isSlide = (link === "/" || link === "\\") && mine.length && LHX.prevTip && !snap;
+    lhxTarget(o.x, o.y, mine.length > 0, snap);      // ring sits under the active fingertip (hidden while the hand only hovers)
     img.style.height = H.toFixed(1) + "px";
     img.style.width = "auto";
     img.style.transitionDuration = snap ? "0s" : (isSlide ? "0.5s" : "0.28s");
@@ -4034,15 +4071,15 @@
     const img = RHX.img;
     if(!img) return null;
     const n = activeStrings().length, kk = rhxK();
-    const W = clampNum(n*STRING_ROW_HEIGHT*HX_CFG.rhW, 84, 240);   // scaled from the pickup / string-span width
+    const W = clampNum(n*STRING_ROW_HEIGHT*HX_CFG.rhW*HX_CFG.rhScale, 118, 336);   // scaled from the pickup / string-span width
     const rot = state.orientation === "vertical" ? HX_CFG.rhRot.v : HX_CFG.rhRot.h, r = rot*Math.PI/180;
     const dir = { x:-Math.sin(r), y:Math.cos(r) };                // direction the fingertips point (screen space)
-    const o = orient(LABEL_GUTTER + totalAlongLength() + RHX_U, CROSS_PAD + stringCenterY(clampNum(s, 0, n - 1)));
+    const o = orient(LABEL_GUTTER + totalAlongLength() + RHX_U + HX_CFG.rhNudge.along, CROSS_PAD + stringCenterY(clampNum(s, 0, n - 1)) + HX_CFG.rhNudge.cross);
     const a = HX_CFG.rhTip[pose] || HX_CFG.rhTip.idle;
     img.style.width = W.toFixed(1) + "px";
     img.style.height = "auto";
     img.style.transitionDuration = (reducedMotion() ? 0 : ms/1000) + "s";
-    img.style.transform = "translate(" + r1(o.x + dir.x*off) + "px," + r1(o.y + dir.y*off) + "px) rotate(" + rot + "deg) translate(" + (-a.x*100) + "%," + (-a.y*100) + "%)";
+    img.style.transform = "translate(" + r1(o.x + dir.x*off) + "px," + r1(o.y + dir.y*off) + "px) rotate(" + rot + "deg) " + (HX_CFG.rhFlip ? "scale(-1,1) " : "") + "translate(" + (-a.x*100) + "%," + (-a.y*100) + "%)";
     const f = rhxFile(pose);
     if(img.getAttribute("src") !== f) img.setAttribute("src", f);
     img.classList.add("ready");
