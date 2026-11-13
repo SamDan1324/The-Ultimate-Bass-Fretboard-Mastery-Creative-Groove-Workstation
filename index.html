@@ -1414,7 +1414,7 @@
   .academy-table td.dual-cell{color:var(--accent-brass); font-weight:700; white-space:nowrap;}
   .academy-table td.enh-cell{color:#c8b8ff; white-space:nowrap;}
 
-  /* ---------- Professor Bass AI: drawer + overlay markers ---------- */
+  /* ---------- Professor BAI: drawer + overlay markers ---------- */
   .marker.ai-marker{
     background:linear-gradient(180deg,#c9bcff,#6b58d6);
     color:#fff; border-color:#efeaff;
@@ -1630,6 +1630,7 @@
     body.ai-compact{--ai-h:34vh; --ai-h:34dvh;}
     /* split screen: the neck is pinned to the top half and stays fully visible beside the answers */
     body.ai-split{overflow:hidden;}
+    body.ai-min.ai-split{--ai-h:calc(48px + env(safe-area-inset-bottom, 0px)); padding-bottom:0;}
     body.ai-split .fretboard-wrapper,
     body.ai-split .fretboard-wrapper.vertical-mode{
       position:fixed; top:0; left:0; right:0; z-index:590;
@@ -1678,19 +1679,19 @@
   <span id="pivotToastText"></span>
   <button class="pivot-x" data-modeact-off="pivot" aria-label="Hide the pivot">&#10005;</button>
 </div>
-<button class="ai-tab" id="aiToggleBtn" aria-expanded="false" aria-controls="aiDrawer">&#127928; Professor Bass AI</button>
-<div class="ai-dock" id="aiDock" role="toolbar" aria-label="Professor Bass AI mini bar">
+<button class="ai-tab" id="aiToggleBtn" aria-expanded="false" aria-controls="aiDrawer">&#127928; Professor BAI</button>
+<div class="ai-dock" id="aiDock" role="toolbar" aria-label="Professor BAI mini bar">
   <button id="aiDockShow">&#9650; Show AI</button>
   <button id="aiDockReplay" disabled title="Replay the last AI fretboard demonstration">&#9654; Replay Groove</button>
   <button id="aiDockStop" title="Stop playback" aria-label="Stop">&#9632;</button>
 </div>
 <button class="ai-replay-pill" id="aiReplayPill" title="Replay the last AI fretboard demonstration">&#9654; Replay Groove</button>
 <button class="mode-tags-btn" id="modeTagsBtn" title="Show or hide the COPY / PASTE banners">Tags: ON</button>
-<aside class="ai-drawer" id="aiDrawer" aria-label="Professor Bass AI assistant">
+<aside class="ai-drawer" id="aiDrawer" aria-label="Professor BAI assistant">
   <div class="ai-grip" id="aiGrip" title="Tap to resize the panel"></div>
   <div class="ai-head">
     <div>
-      <h2>Professor Bass AI <span class="ai-pill warn" id="aiPill">&#9679; Offline engine</span><span id="aiBoardBadge">&#9889; Board Synced</span></h2>
+      <h2>Professor BAI <span class="ai-pill warn" id="aiPill">&#9679; Offline engine</span><span id="aiBoardBadge">&#9889; Board Synced</span></h2>
       <p>Ask anything about bass &amp; theory: the neck answers back. Hybrid: Gemini when online, built-in engine offline.</p>
     </div>
     <div class="ai-head-actions">
@@ -9882,9 +9883,10 @@
     const dr = document.getElementById("aiDrawer");
     const open = dr.classList.contains("open");
     const cl = document.body.classList;
+    const minimized = !open && !!AI.min;
     cl.toggle("ai-open", open);
-    cl.toggle("ai-split", open && aiIsSheet());
-    if(!open) cl.remove("ai-compact");
+    cl.toggle("ai-split", (open || minimized) && aiIsSheet());   /* Hide keeps the pinned fullscreen neck; only X (close) releases it */
+    if(!open && !minimized) cl.remove("ai-compact");
     fitBoard(true);
     setTimeout(function(){ window.dispatchEvent(new Event("resize")); if(open && AI.lastSpec) aiRevealNeck(); }, 340);
   }
