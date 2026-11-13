@@ -1432,6 +1432,19 @@
     box-shadow:4px 0 14px rgba(0,0,0,0.45); letter-spacing:0.5px;
   }
   .ai-tab:hover{filter:brightness(1.1);}
+  .ai-dock{position:fixed; left:0; right:0; bottom:0; height:48px; box-sizing:content-box; padding:0 12px env(safe-area-inset-bottom,0px); z-index:640; display:none; align-items:center; justify-content:center; gap:10px; background:rgba(14,20,34,0.95); border-top:1px solid var(--accent-cyan); box-shadow:0 -6px 24px rgba(0,0,0,0.5);}
+  body.ai-min .ai-dock{display:flex;}
+  body.ai-min .ai-tab{display:none;}
+  body.ai-min{padding-bottom:calc(54px + env(safe-area-inset-bottom,0px));}
+  .ai-dock button, .ai-replay-pill, .mode-tags-btn{border:1px solid var(--line); background:rgba(36,47,71,0.92); color:var(--text-main); border-radius:999px; padding:9px 16px; font-size:12.5px; font-weight:800; cursor:pointer; white-space:nowrap;}
+  .ai-dock #aiDockShow{background:linear-gradient(180deg,var(--accent-cyan),#1a8f8f); color:#04211f; border-color:transparent;}
+  .ai-dock #aiDockReplay, .ai-replay-pill{background:linear-gradient(180deg,#ffd45e,#d9a21b); color:#2a1d00; border-color:transparent; box-shadow:0 0 14px rgba(255,212,94,0.45);}
+  .ai-dock #aiDockReplay:disabled{opacity:.4; box-shadow:none; cursor:not-allowed;}
+  .ai-replay-pill{position:fixed; right:14px; bottom:calc(16px + env(safe-area-inset-bottom,0px)); z-index:610; display:none;}
+  .ai-replay-pill.on{display:block;}
+  .mode-tags-btn{position:fixed; top:calc(46px + env(safe-area-inset-top,0px)); right:10px; z-index:600; display:none; padding:6px 12px; font-size:11.5px; border-color:#ffe14d; color:#ffe14d; background:rgba(10,14,24,0.92);}
+  body.modes-on .mode-tags-btn{display:block;}
+  .mode-tags-btn.off{color:var(--text-dim); border-color:var(--line);}
   .ai-drawer{
     position:fixed; top:0; left:0; z-index:602;
     width:min(430px, 94vw); height:100vh; height:100dvh;
@@ -1460,7 +1473,9 @@
   .ai-msg b{color:var(--accent-brass);}
   .ai-actions{margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;}
   .ai-actions button{border:1px solid var(--line); background:rgba(36,47,71,0.9); color:var(--accent-cyan); border-radius:8px; padding:5px 9px; font-size:11.5px; font-weight:700; cursor:pointer;}
-  .ai-chips{display:flex; flex-wrap:wrap; gap:6px; padding:6px 14px 8px; max-height:112px; overflow-y:auto;}
+  .ai-chips{display:flex; flex-wrap:nowrap; gap:6px; padding:6px 14px 8px; flex:0 0 auto; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; border-top:1px solid var(--line);}
+  .ai-chips.off{display:none;}
+  .ai-chips button{white-space:nowrap; flex:0 0 auto;}
   .ai-chips button{border:1px solid var(--accent-violet); background:rgba(75,61,153,0.25); color:#d8d1ff; border-radius:14px; padding:5px 10px; font-size:11.5px; cursor:pointer;}
   .ai-chips button:hover{background:rgba(75,61,153,0.55);}
   .ai-input{display:flex; gap:6px; padding:8px 12px 14px; border-top:1px solid var(--line); align-items:flex-end;}
@@ -1664,6 +1679,13 @@
   <button class="pivot-x" data-modeact-off="pivot" aria-label="Hide the pivot">&#10005;</button>
 </div>
 <button class="ai-tab" id="aiToggleBtn" aria-expanded="false" aria-controls="aiDrawer">&#127928; Professor Bass AI</button>
+<div class="ai-dock" id="aiDock" role="toolbar" aria-label="Professor Bass AI mini bar">
+  <button id="aiDockShow">&#9650; Show AI</button>
+  <button id="aiDockReplay" disabled title="Replay the last AI fretboard demonstration">&#9654; Replay Groove</button>
+  <button id="aiDockStop" title="Stop playback" aria-label="Stop">&#9632;</button>
+</div>
+<button class="ai-replay-pill" id="aiReplayPill" title="Replay the last AI fretboard demonstration">&#9654; Replay Groove</button>
+<button class="mode-tags-btn" id="modeTagsBtn" title="Show or hide the COPY / PASTE banners">Tags: ON</button>
 <aside class="ai-drawer" id="aiDrawer" aria-label="Professor Bass AI assistant">
   <div class="ai-grip" id="aiGrip" title="Tap to resize the panel"></div>
   <div class="ai-head">
@@ -1676,6 +1698,8 @@
       <button id="aiVoiceBtn" title="Spoken replies (Web Speech API)">&#128266; Voice ON</button>
       <button id="aiStopBtn" title="Stop speech, playback and lessons">&#9632; Stop</button>
       <button id="aiSizeBtn" title="Make the panel taller or shorter">&#8661; Size</button>
+      <button id="aiHideBtn" title="Collapse to a thin bar so the fretboard is clear">&#9660; Hide</button>
+      <button id="aiPromptsBtn" title="Show or hide the quick prompts row">&#128161; Prompts</button>
       <button id="aiClearHl" title="Remove the AI highlights from the neck">Clear neck</button>
       <button id="aiCloseBtn" aria-label="Close assistant">&#10005;</button>
     </div>
@@ -6890,7 +6914,7 @@
       const g = vEl("g", { "class":"vec-group" });
       g.appendChild(vEl("path", { d:d, fill:"#ffffff", "fill-opacity":"0.12", stroke:"#ffffff", "stroke-width":"2.5", "stroke-dasharray":"7 5", "stroke-opacity":"0.95" }));
       svg.appendChild(g);
-      drawModeChip(svg, bd[0], bd[1], "#ffffff", 1, 44);
+      if(state.modeViz.tags !== false) drawModeChip(svg, bd[0], bd[1], "#ffffff", 1, 44);
     });
     const defs = vEl("defs");
     const mk = vEl("marker", { id:"copyHead", markerWidth:"16", markerHeight:"16", refX:"12", refY:"8", orient:"auto", markerUnits:"userSpaceOnUse" });
@@ -6913,7 +6937,7 @@
       }
     }
     const dst = dstRows[0];
-    drawTabTip(svg, dst.s, dst.frets[0], "COPY \u2192 PASTE: +2 strings, +2 frets");
+    if(state.modeViz.tags !== false) drawTabTip(svg, dst.s, dst.frets[0], "COPY \u2192 PASTE: +2 strings, +2 frets");
   }
 
   /* ----- 3-fret relative major / minor pivot ----- */
@@ -7012,6 +7036,9 @@
     }
     if(pivot) drawPivot(svg);
     syncPivotToast(pivot);
+    document.body.classList.toggle("modes-on", !!spec);
+    const tb = document.getElementById("modeTagsBtn");
+    if(tb){ const tagsOn = state.modeViz.tags !== false; tb.textContent = "Tags: " + (tagsOn ? "ON" : "OFF"); tb.classList.toggle("off", !tagsOn); }
   }
   function syncModeButtons(){
     document.querySelectorAll("[data-modeact]").forEach(function(b){
@@ -8537,6 +8564,8 @@
   function aiRun(spec){
     aiStopSeq();
     AI.lastSpec = spec;
+    if(spec && ((spec.events && spec.events.length) || spec.timeline)) AI.replaySpec = spec;
+    setTimeout(aiSyncDock, 0);
     AI.path = null; AI.chips = false; AI.chipActive = -1; AI.rhBadge = null; AI.tip = null; AI.modes = null; AI.tlNow = null;
     if(!spec) return;
     if(spec.timeline) aiPrepareCanvas();
@@ -8593,6 +8622,8 @@
     "Teach me the Nigerian Highlife lesson",
     "Where is G on the neck?",
     "Play a 12 bar blues in E",
+    "Play a 16-step funk groove in A",
+    "Play a groove across the 7 mode boxes",
     "Explain Mo and Toh"
   ];
 
@@ -8985,7 +9016,7 @@
       "CRITICAL — BOARD COMMAND FORMAT: whenever the user asks to show, play, demonstrate, teach, or generate ANY groove, scale, mode, riff, fill, progression, chord, or exercise, you MUST append a valid JSON command wrapped in <BOARD_CMD>...</BOARD_CMD> tags at the very end of your reply. The board will animate and play it automatically. Example:\n<BOARD_CMD>" + JSON.stringify(exSequence) + "</BOARD_CMD>\nMore examples:\n<BOARD_CMD>" + JSON.stringify(exHighlight) + "</BOARD_CMD>",
       "SEQUENCE ACTION (the primary format): {\"action\":\"sequence\",\"key\":\"C\",\"bpm\":100,\"steps\":[{\"string\":2,\"fret\":3,\"label\":\"Do\",\"finger\":1,\"duration\":500}]}. String index: 0 = LOWEST string (E on 4-string, B on 5-string), 1 = A, 2 = D, 3 = G (4-string). On a 5-string bass: 0 = B, 1 = E, 2 = A, 3 = D, 4 = G. Fret is 0-24. Duration is milliseconds per step. Optional per-step \"tech\":\"slap\" or \"pop\" makes the on-screen right hand slap (thumb) or pop (index). Optional per-step \"link\":\"h\" (hammer-on), \"p\" (pull-off), \"/\" (slide up) or \"\\\\\" (slide down) on a step that stays on the same string animates the left-hand technique with no right-hand pluck. Optional \"action\":\"highlight_notes\" with \"chord_type\" or \"scale_type\" and \"notes\" array of semitone offsets for static chord/scale highlights. Other actions: {\"action\":\"load_lesson\",\"lesson_id\":\"<id>\"}, {\"action\":\"set_notation\",\"mode\":\"solfa\"}, {\"action\":\"set_key\",\"key\":\"D\"}, {\"action\":\"show_mode_boxes\"}, {\"action\":\"show_pivot\"}, {\"action\":\"clear_neck\"}.",
       "Valid lesson ids: " + lessons.join("; ") + ".",
-      "RULES: (a) the <BOARD_CMD>...</BOARD_CMD> tag must contain ONLY valid JSON — no prose, no markdown fences, no explanation. (b) The visible reply should be spoken-brief (≤150 words) and should describe what you are showing. (c) Never mention the tag or explain the JSON to the user — the board handles it silently. (d) Omit the tag only when the question is pure theory with nothing to show (e.g. 'what is a ii-V-I progression?' might still warrant a show; 'what is the circle of fifths?' needs only prose). (e) For scale/mode questions, aim for 8-16 step sequences; for grooves, 8-16 step loops with realistic rhythm. (f) Keep timings sensible: eighth notes = 250ms at 120bpm, quarter notes = 500ms."
+      "RULES: (a) the <BOARD_CMD>...</BOARD_CMD> tag must contain ONLY valid JSON — no prose, no markdown fences, no explanation. (b) The visible reply should be spoken-brief (≤150 words) and should describe what you are showing. (c) Never mention the tag or explain the JSON to the user — the board handles it silently. (d) Omit the tag only when the question is pure theory with nothing to show (e.g. 'what is a ii-V-I progression?' might still warrant a show; 'what is the circle of fifths?' needs only prose). (e) For scale and mode questions, aim for 8-16 step sequences. (e2) GROOVE LENGTH RULE: when asked to play or demonstrate a groove, bassline, riff or progression across the fretboard, you MUST generate a full 16 to 24 step musical groove in the sequence steps (never a short 4 or 5 note snippet) that walks smoothly across multiple frets AND multiple strings with realistic rhythm, keeping each hop within a comfortable hand span. (e3) MODE BOX RULE: the sequence command may include an optional boolean \"showModeBoxes\":true. Set it to true whenever the user asks to see how a groove connects across mode shapes or mode boxes; the board then lights the seven colored Mode Box outlines while the groove plays so every note is seen moving inside and across the connected boxes. Example: [{\"action\":\"sequence\",\"key\":\"A\",\"bpm\":100,\"showModeBoxes\":true,\"steps\":[ ...16 to 24 steps... ]}]. (f) Keep timings sensible: eighth notes = 250ms at 120bpm, quarter notes = 500ms."
     ].join("\n\n");
   }
   function aiGeminiBody(q, rawMode){
@@ -8996,7 +9027,7 @@
     if(att) parts.unshift({ inline_data:{ mime_type:att.mime, data:att.data } });   // image / PDF / text goes first, then the question
     contents.push({ role:"user", parts:parts });
     const sys = rawMode ? "Reply briefly." : aiSystemPrompt() + (att ? "\n\nATTACHMENT: the user attached a file (" + att.name + "). Read it carefully: it is probably bass tab, a chord chart, a scale diagram or sheet music. Explain what it shows in plain language, then demonstrate the main idea on the fretboard with a <BOARD_CMD> block." : "");
-    return { system_instruction:{ parts:[{ text:sys }] }, contents:contents, generationConfig:{ temperature:0.6, maxOutputTokens:2048 } };
+    return { system_instruction:{ parts:[{ text:sys }] }, contents:contents, generationConfig:{ temperature:0.6, maxOutputTokens:4096 } };
   }
   async function aiGemini(q, rawMode){
     const key = AI.key;
@@ -9341,6 +9372,17 @@
 
   // The bridge: converts a parsed command object into the same spec format aiRun already understands
   function aiCmdToSpec(c){
+    const spec = aiCmdToSpecCore(c);
+    try{
+      const flag = c && (c.showModeBoxes === true || c.show_mode_boxes === true || String(c.showModeBoxes).toLowerCase() === "true");
+      const asked = /\bmode[\s-]*(box|boxes|shape|shapes)\b/i.test(String(AI.lastQuery || ""));
+      if(spec && !spec.modes && !spec.lesson && !spec.timeline && spec.events && spec.events.length && (flag || asked)){
+        spec.modes = { show:[0,1,2,3,4,5,6], focus:-1, links:[] };   // colored 7-box outlines stay on while the groove plays
+      }
+    }catch(e){}
+    return spec;
+  }
+  function aiCmdToSpecCore(c){
     const act = aiNorm(c.action);
     const kp = c.key ? aiParseKeyName(c.key) : null;
     const root = kp ? kp.pc : keyIndex();
@@ -9848,6 +9890,7 @@
   }
   function aiOpen(open){
     const dr = document.getElementById("aiDrawer");
+    AI.min = false; document.body.classList.remove("ai-min");
     dr.classList.toggle("open", open);
     document.getElementById("aiToggleBtn").setAttribute("aria-expanded", open ? "true" : "false");
     if(open){
@@ -9867,8 +9910,33 @@
       aiStopSpeech();
     }
     aiApplyLayout();
+    aiSyncDock();
+  }
+  function aiSyncDock(){
+    const can = !!AI.replaySpec;
+    const drawerOpen = document.getElementById("aiDrawer").classList.contains("open");
+    const rb = document.getElementById("aiDockReplay");
+    if(rb) rb.disabled = !can;
+    const pill = document.getElementById("aiReplayPill");
+    if(pill) pill.classList.toggle("on", can && !drawerOpen && !AI.min);
+  }
+  function aiMinimize(min){
+    if(!min){ aiOpen(true); return; }
+    AI.min = true;
+    document.body.classList.add("ai-min");
+    document.getElementById("aiDrawer").classList.remove("open");
+    document.getElementById("aiToggleBtn").setAttribute("aria-expanded", "false");
+    aiApplyLayout();
+    aiSyncDock();
+  }
+  function aiReplay(){
+    if(!AI.replaySpec) return;
+    try{ aiFlashBoardBadge(); }catch(e){}
+    aiRun(AI.replaySpec);
   }
   function wireModes(){
+    const tagsBtn = document.getElementById("modeTagsBtn");
+    if(tagsBtn) tagsBtn.addEventListener("click", function(){ state.modeViz.tags = (state.modeViz.tags === false); renderModeRig(); });
     document.addEventListener("click", function(e){
       const off = e.target.closest ? e.target.closest("[data-modeact-off]") : null;
       if(off){ setModePivot(false); return; }
@@ -9885,6 +9953,15 @@
     });
     document.getElementById("aiToggleBtn").addEventListener("click", function(){ aiOpen(!document.getElementById("aiDrawer").classList.contains("open")); });
     document.getElementById("aiCloseBtn").addEventListener("click", function(){ aiOpen(false); });
+    document.getElementById("aiHideBtn").addEventListener("click", function(){ aiMinimize(true); });
+    document.getElementById("aiDockShow").addEventListener("click", function(){ aiMinimize(false); });
+    document.getElementById("aiDockReplay").addEventListener("click", aiReplay);
+    document.getElementById("aiReplayPill").addEventListener("click", aiReplay);
+    document.getElementById("aiDockStop").addEventListener("click", function(){ aiStopSeq(); aiStopSpeech(); });
+    document.getElementById("aiPromptsBtn").addEventListener("click", function(){
+      const ch = document.getElementById("aiChips"), off = !ch.classList.contains("off");
+      ch.classList.toggle("off", off); this.classList.toggle("off", off);
+    });
     document.getElementById("aiSendBtn").addEventListener("click", function(){ aiSend(); });
     (function(){
       const ab = document.getElementById("aiAttachBtn"), fi = document.getElementById("aiFileInput"), ta = document.getElementById("aiInput");
