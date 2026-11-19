@@ -1715,10 +1715,10 @@
       <input type="text" id="aiModelInput" list="aiModelList" placeholder="Model (default gemini-2.5-flash)" autocomplete="off" spellcheck="false" aria-label="Gemini model name">
       <datalist id="aiModelList"><option value="gemini-2.5-flash"></option><option value="gemini-2.5-flash-lite"></option><option value="gemini-3.5-flash"></option><option value="gemini-3.6-flash"></option></datalist>
     </div>
-    <label for="aiDsKeyInput">DeepSeek API Key (Optional &middot; Tier 3 backup)</label>
+    <label for="aiGroqKeyInput">Groq API Key (Optional &middot; Free Tier 3 backup)</label>
     <div class="ai-key-row">
-      <input type="password" id="aiDsKeyInput" placeholder="Optional: paste your key from platform.deepseek.com" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="DeepSeek API key (optional)">
-      <button type="button" id="aiDsKeyShow">Show</button>
+      <input type="password" id="aiGroqKeyInput" placeholder="Optional: paste your free gsk_ key from console.groq.com/keys" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Groq API key (optional)">
+      <button type="button" id="aiGroqKeyShow">Show</button>
     </div>
     <div class="ai-key-row">
       <button type="button" id="aiKeySave" class="primary">Save keys</button>
@@ -1726,7 +1726,7 @@
       <button type="button" id="aiKeyForget">Forget keys</button>
     </div>
     <div class="ai-cfg-status" id="aiCfgStatus" role="status"></div>
-    <div class="ai-cfg-note">Get a free Gemini key at aistudio.google.com/apikey. Keys are saved only in this browser's localStorage. The Gemini key is sent only to Google (generativelanguage.googleapis.com) and the optional DeepSeek key only to DeepSeek (api.deepseek.com), both over HTTPS. Anyone who can use this browser profile could read them, so use keys you can revoke. Answers cascade: Gemini 2.5 Flash, then Gemini 2.5 Flash-Lite, then DeepSeek (only if you added a key), then the built-in engine when you are offline or every online layer fails.</div>
+    <div class="ai-cfg-note">Get a free Gemini key at aistudio.google.com/apikey. Keys are saved only in this browser's localStorage. The Gemini key is sent only to Google (generativelanguage.googleapis.com) and the optional free Groq key (starts with gsk_) only to Groq (api.groq.com), both over HTTPS. Anyone who can use this browser profile could read them, so use keys you can revoke. Answers cascade: Gemini 2.5 Flash, then Gemini 2.5 Flash-Lite, then Groq llama-3.3-70b-versatile (only if you added a key), then the built-in engine when you are offline or every online layer fails.</div>
   </div>
   <div class="ai-log" id="aiLog" aria-live="polite"></div>
   <div class="ai-chips" id="aiChips"></div>
@@ -8997,13 +8997,13 @@
   const GEMINI_MODEL_STORE = "bassws_gemini_model_v1";
   const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/";
   const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash"];
-  const DEEPSEEK_KEY_STORE = "bassws_deepseek_key_v1";
-  const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions";
-  const DEEPSEEK_MODEL = "deepseek-chat";
+  const GROQ_KEY_STORE = "bassws_groq_key_v1";
+  const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+  const GROQ_MODEL = "llama-3.3-70b-versatile";
   const AI_TIMEOUT_MS = 25000;                     // every live AI request waits up to 25 s (slow mobile data)
   const AI_TIER1_MODEL = "gemini-2.5-flash";
   const AI_TIER2_MODEL = "gemini-2.5-flash-lite";
-  AI.key = ""; AI.dsKey = ""; AI.lastTier = ""; AI.model = ""; AI.history = []; AI.busy = false;
+  AI.key = ""; AI.groqKey = ""; AI.lastTier = ""; AI.model = ""; AI.history = []; AI.busy = false;
 
   function aiStoreGet(k){ try{ return localStorage.getItem(k) || ""; }catch(e){ return ""; } }
   function aiStoreSet(k, v){ try{ localStorage.setItem(k, v); return true; }catch(e){ return false; } }
@@ -9152,14 +9152,14 @@
     }
     throw last || { status:0, msg:"no response" };
   }
-  /* ---------- Tier 3: DeepSeek (optional, OpenAI-compatible streaming) ---------- */
-  function aiDsErr(err, extra){
+  /* ---------- Tier 3: Groq (optional, OpenAI-compatible streaming) ---------- */
+  function aiGroqErr(err, extra){
     const e = extra || {};
-    e.provider = "deepseek";
-    if(err){ e.abort = err.name === "AbortError"; e.net = (err instanceof TypeError); }
+    e.provider = "groq";
+    if(err){ e.abort = err.name === "AbortError"; e.net = (err instanceof TypeError); e.msg = err.message || ""; }
     return e;
   }
-  async function aiDeepSeekStream(q, onText, key, rawMode){
+  async function aiGroqStream(q, onText, key, rawMode){
     const msgs = [{ role:"system", content: rawMode ? "Reply briefly." : aiSystemPrompt() }];
     if(!rawMode) AI.history.slice(-8).forEach(function(h){ msgs.push({ role: h.role === "model" ? "assistant" : "user", content:h.text }); });
     msgs.push({ role:"user", content:q });
@@ -9167,18 +9167,18 @@
     let to = setTimeout(function(){ ctrl.abort(); }, AI_TIMEOUT_MS);
     let resp;
     try{
-      resp = await fetch(DEEPSEEK_ENDPOINT, {
+      resp = await fetch(GROQ_ENDPOINT, {
         method:"POST",
         headers:{ "Content-Type":"application/json", "Authorization":"Bearer " + key },
-        body:JSON.stringify({ model:DEEPSEEK_MODEL, messages:msgs, stream:true, temperature:0.6, max_tokens:4096 }),
+        body:JSON.stringify({ model:GROQ_MODEL, messages:msgs, stream:true, temperature:0.6, max_tokens:4096 }),
         signal:ctrl.signal
       });
-    }catch(err){ clearTimeout(to); throw aiDsErr(err); }
+    }catch(err){ clearTimeout(to); throw aiGroqErr(err); }
     if(!resp.ok){
       clearTimeout(to);
       let msg = resp.statusText;
       try{ const j = await resp.json(); if(j && j.error && j.error.message) msg = j.error.message; }catch(e){}
-      throw aiDsErr(null, { status:resp.status, msg:msg });
+      throw aiGroqErr(null, { status:resp.status, msg:msg });
     }
     let buf = "", full = "";
     const handle = function(line){
@@ -9215,14 +9215,14 @@
       }
     }catch(err){
       clearTimeout(to);
-      if(full.length > 80) return { text:full.trim(), model:DEEPSEEK_MODEL, partial:true };
-      throw aiDsErr(err);
+      if(full.length > 80) return { text:full.trim(), model:GROQ_MODEL, partial:true };
+      throw aiGroqErr(err);
     }
     clearTimeout(to);
-    if(!full.trim()) throw aiDsErr(null, { status:0, empty:true, msg:"empty" });
-    return { text:full.trim(), model:DEEPSEEK_MODEL };
+    if(!full.trim()) throw aiGroqErr(null, { status:0, empty:true, msg:"empty" });
+    return { text:full.trim(), model:GROQ_MODEL };
   }
-  /* ---------- The cascade: Gemini 2.5 Flash -> Gemini 2.5 Flash-Lite -> DeepSeek -> (caller falls back to the offline engine) ---------- */
+  /* ---------- The cascade: Gemini 2.5 Flash -> Gemini 2.5 Flash-Lite -> Groq -> (caller falls back to the offline engine) ---------- */
   async function aiCascade(q, onText){
     const att = AI.sendAttach;
     const reasons = [];
@@ -9250,12 +9250,12 @@
         }
       }
     }
-    if(AI.dsKey && !att){
+    if(AI.groqKey && !att){
       try{ onText(""); }catch(e){}
       try{
-        const g = await aiDeepSeekStream(q, onText, AI.dsKey, false);
-        g.tier = "deepseek";
-        g.detail = "The Gemini layers were unavailable, so DeepSeek answered";
+        const g = await aiGroqStream(q, onText, AI.groqKey, false);
+        g.tier = "groq";
+        g.detail = "The Gemini layers were unavailable, so Groq answered";
         return g;
       }catch(err){
         reasons.push(aiErrorReason(err));
@@ -9776,9 +9776,9 @@
     const pill = document.getElementById("aiPill");
     if(!pill) return;
     const map = {
-      gemini:["Gemini", "ok"], flashlite:["Flash-Lite", "ok"], deepseek:["DeepSeek", "ok"], thinking:["Thinking\u2026", "ok"], local:["Offline engine", "warn"], offline:["Offline", "warn"], error:["Fallback", "warn"]
+      gemini:["Gemini", "ok"], flashlite:["Flash-Lite", "ok"], groq:["Groq", "ok"], thinking:["Thinking\u2026", "ok"], local:["Offline engine", "warn"], offline:["Offline", "warn"], error:["Fallback", "warn"]
     };
-    const titles = { gemini:"Answers come from Google Gemini 2.5 Flash (Tier 1)", flashlite:"Answers come from Google Gemini 2.5 Flash-Lite (Tier 2)", deepseek:"Answers come from DeepSeek (Tier 3)" };
+    const titles = { gemini:"Answers come from Google Gemini 2.5 Flash (Tier 1)", flashlite:"Answers come from Google Gemini 2.5 Flash-Lite (Tier 2)", groq:"Answers come from Groq (Tier 3)" };
     const m = map[kind] || map.local;
     pill.textContent = "\u25CF " + m[0];
     pill.className = "ai-pill " + m[1];
@@ -9791,16 +9791,24 @@
     el.className = "ai-cfg-status" + (bad ? " bad" : "");
   }
   function aiRefreshPill(){
-    const any = AI.key || AI.dsKey;
+    const any = AI.key || AI.groqKey;
     if(any && navigator.onLine !== false){
-      if(AI.lastTier === "flashlite" || AI.lastTier === "deepseek") aiUpdatePill(AI.lastTier);
-      else aiUpdatePill(AI.key ? "gemini" : "deepseek");
+      if(AI.lastTier === "flashlite" || AI.lastTier === "groq") aiUpdatePill(AI.lastTier);
+      else aiUpdatePill(AI.key ? "gemini" : "groq");
     }
     else if(any) aiUpdatePill("offline", "No internet connection: using the built-in engine");
     else aiUpdatePill("local", "Add a free Gemini key in the API panel for open-ended questions");
   }
+  function aiErrorDetail(err){
+    if(err && err.status > 0) return "HTTP " + err.status + (err.msg ? " \u2013 " + err.msg : "");
+    if(err && err.blocked) return "Request blocked by the safety filter (no HTTP error).";
+    if(err && err.empty) return "HTTP 200 but the reply was empty.";
+    if(err && (err.name === "AbortError" || err.abort)) return "No response within " + (AI_TIMEOUT_MS / 1000) + " s (timed out, no HTTP status).";
+    if(err && (err.message || err.msg)) return "Network error, no HTTP status (" + (err.message || err.msg) + ").";
+    return "Unknown error, no HTTP status.";
+  }
   function aiErrorReason(err, label){
-    const who = (err && err.provider === "deepseek") ? "DeepSeek" : (label || "Gemini");
+    const who = (err && err.provider === "groq") ? "Groq" : (label || "Gemini");
     if(err && (err.name === "AbortError" || err.abort)) return who + " took too long to answer.";
     if(err && err.blocked) return who + " declined that request.";
     if(err && err.status === 429) return "The " + who + " quota or rate limit is used up for now.";
@@ -9812,11 +9820,12 @@
   }
   function wireGeminiConfig(){
     AI.key = aiStoreGet(GEMINI_KEY_STORE);
-    AI.dsKey = aiStoreGet(DEEPSEEK_KEY_STORE);
+    aiStoreDel("bassws_deepseek_key_v1");
+    AI.groqKey = aiStoreGet(GROQ_KEY_STORE);
     AI.model = aiStoreGet(GEMINI_MODEL_STORE);
-    const keyIn = document.getElementById("aiKeyInput"), modelIn = document.getElementById("aiModelInput"), dsIn = document.getElementById("aiDsKeyInput");
+    const keyIn = document.getElementById("aiKeyInput"), modelIn = document.getElementById("aiModelInput"), groqIn = document.getElementById("aiGroqKeyInput");
     keyIn.value = AI.key;
-    dsIn.value = AI.dsKey;
+    groqIn.value = AI.groqKey;
     modelIn.value = AI.model;
     document.getElementById("aiCfgBtn").addEventListener("click", function(){
       const panel = document.getElementById("aiConfig");
@@ -9830,36 +9839,36 @@
       keyIn.type = hidden ? "text" : "password";
       this.textContent = hidden ? "Hide" : "Show";
     });
-    document.getElementById("aiDsKeyShow").addEventListener("click", function(){
-      const hidden = dsIn.type === "password";
-      dsIn.type = hidden ? "text" : "password";
+    document.getElementById("aiGroqKeyShow").addEventListener("click", function(){
+      const hidden = groqIn.type === "password";
+      groqIn.type = hidden ? "text" : "password";
       this.textContent = hidden ? "Hide" : "Show";
     });
     document.getElementById("aiKeySave").addEventListener("click", function(){
-      const k = keyIn.value.trim(), d = dsIn.value.trim();
-      if(!k && !d){ aiCfgStatus("Enter your Gemini key first (the DeepSeek key is optional).", true); return; }
+      const k = keyIn.value.trim(), d = groqIn.value.trim();
+      if(!k && !d){ aiCfgStatus("Enter your Gemini key first (the Groq key is optional).", true); return; }
       if(k && k.length < 20){ aiCfgStatus("That does not look like a Gemini API key (it should be about 39 characters).", true); return; }
-      if(d && d.length < 20){ aiCfgStatus("That does not look like a DeepSeek API key (it starts with sk-).", true); return; }
+      if(d && (d.length < 20 || d.indexOf("gsk_") !== 0)){ aiCfgStatus("That does not look like a Groq API key (it starts with gsk_).", true); return; }
       let ok = true;
       if(k){ ok = aiStoreSet(GEMINI_KEY_STORE, k) && ok; } else { aiStoreDel(GEMINI_KEY_STORE); }
       AI.key = k;
-      if(d){ ok = aiStoreSet(DEEPSEEK_KEY_STORE, d) && ok; } else { aiStoreDel(DEEPSEEK_KEY_STORE); }
-      AI.dsKey = d;
+      if(d){ ok = aiStoreSet(GROQ_KEY_STORE, d) && ok; } else { aiStoreDel(GROQ_KEY_STORE); }
+      AI.groqKey = d;
       const mdl = modelIn.value.trim();
       if(mdl){ aiStoreSet(GEMINI_MODEL_STORE, mdl); AI.model = mdl; } else { aiStoreDel(GEMINI_MODEL_STORE); AI.model = ""; }
       AI.lastTier = "";
-      const chainTxt = (k ? "Gemini Flash \u2192 Flash-Lite" : "") + (k && d ? " \u2192 " : "") + (d ? "DeepSeek" : "") + " \u2192 built-in engine";
+      const chainTxt = (k ? "Gemini Flash \u2192 Flash-Lite" : "") + (k && d ? " \u2192 " : "") + (d ? "Groq" : "") + " \u2192 built-in engine";
       aiCfgStatus(ok ? "Saved in this browser. Answer order: " + chainTxt + "." : "Could not write to localStorage: the keys will last until you close this tab.", !ok);
       aiRefreshPill();
     });
     document.getElementById("aiKeyForget").addEventListener("click", function(){
-      aiStoreDel(GEMINI_KEY_STORE); aiStoreDel(GEMINI_MODEL_STORE); aiStoreDel(DEEPSEEK_KEY_STORE);
-      AI.key = ""; AI.dsKey = ""; AI.model = ""; AI.lastTier = ""; keyIn.value = ""; dsIn.value = ""; modelIn.value = "";
+      aiStoreDel(GEMINI_KEY_STORE); aiStoreDel(GEMINI_MODEL_STORE); aiStoreDel(GROQ_KEY_STORE);
+      AI.key = ""; AI.groqKey = ""; AI.model = ""; AI.lastTier = ""; keyIn.value = ""; groqIn.value = ""; modelIn.value = "";
       aiCfgStatus("Keys removed from this browser. Using the built-in engine.", false);
       aiRefreshPill();
     });
     document.getElementById("aiKeyTest").addEventListener("click", async function(){
-      const k = keyIn.value.trim(), d = dsIn.value.trim();
+      const k = keyIn.value.trim(), d = groqIn.value.trim();
       if(k.length < 20 && d.length < 20){ aiCfgStatus("Enter a key first.", true); return; }
       aiCfgStatus("Testing\u2026", false);
       const out = []; let bad = false;
@@ -9867,17 +9876,18 @@
         const prevKey = AI.key, prevModel = AI.model;
         AI.key = k; AI.model = modelIn.value.trim();
         try{
-          const g = await aiGemini("Reply with the single word OK.", true);
+          const tm = AI.model || AI_TIER1_MODEL;
+          const g = await aiGemini("Reply with the single word OK.", true, [tm]);
           out.push("Gemini connected: " + g.model + " replied \u201C" + g.text.slice(0, 30) + "\u201D.");
-        }catch(err){ bad = true; out.push("Gemini test failed: " + aiErrorReason(err)); }
+        }catch(err){ bad = true; out.push("Gemini test failed (" + (AI.model || AI_TIER1_MODEL) + "): " + aiErrorDetail(err)); }
         AI.key = prevKey; AI.model = prevModel;
       }
       if(d.length >= 20){
         try{
           let txt = "";
-          await aiDeepSeekStream("Reply with the single word OK.", function(t){ txt = t; }, d, true);
-          out.push("DeepSeek connected: replied \u201C" + txt.slice(0, 30) + "\u201D.");
-        }catch(err){ bad = true; out.push("DeepSeek test failed: " + aiErrorReason(err)); }
+          await aiGroqStream("Reply with the single word OK.", function(t){ txt = t; }, d, true);
+          out.push("Groq connected: replied \u201C" + txt.slice(0, 30) + "\u201D.");
+        }catch(err){ bad = true; out.push("Groq test failed: " + aiErrorDetail(err)); }
       }
       aiCfgStatus(out.join(" ") + (bad ? "" : " Press Save keys to keep them."), bad);
     });
@@ -9986,7 +9996,7 @@
     AI.lastQuery = q;
     let reason = "";
     const thinkingHtml = '<span class="ai-thinking">Professor Bass is thinking<i>.</i><i>.</i><i>.</i></span>';
-    if(AI.key || AI.dsKey){
+    if(AI.key || AI.groqKey){
       if(navigator.onLine === false){
         reason = "You appear to be offline.";
       } else {
@@ -10026,7 +10036,7 @@
     try{ res = aiOfflineAnswer(q); }
     catch(err){ res = { text:"Something went wrong while I was working that out. Please try rephrasing: for example 'show me a C major 7th chord'." }; }
     if(reason) res.note = reason + " Answered by the built-in music-theory engine.";
-    if(!AI.key && !AI.dsKey) aiRefreshPill();
+    if(!AI.key && !AI.groqKey) aiRefreshPill();
     aiDeliver(res);
   }
   function aiIsSheet(){
