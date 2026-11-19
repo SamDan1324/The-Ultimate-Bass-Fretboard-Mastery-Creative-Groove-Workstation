@@ -783,8 +783,10 @@
   .hand-img.bad{display:none !important;}
   .hand-img.lh-img{z-index:4;}
   .hand-img.rh-img{z-index:6;
-    -webkit-mask-image:linear-gradient(to bottom, transparent 0%, #000 22%, #000 100%);
-            mask-image:linear-gradient(to bottom, transparent 0%, #000 22%, #000 100%);}   /* soft wrist fade (wrist = top edge of the art) */
+    -webkit-mask-image:linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.5) 11%, #000 28%, #000 100%), linear-gradient(to right, transparent 0%, rgba(0,0,0,0.5) 8%, #000 20%, #000 100%);
+            mask-image:linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.5) 11%, #000 28%, #000 100%), linear-gradient(to right, transparent 0%, rgba(0,0,0,0.5) 8%, #000 20%, #000 100%);
+    -webkit-mask-size:100% 100%; mask-size:100% 100%; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+    -webkit-mask-composite:source-in; mask-composite:intersect;}   /* soft wrist fade on the top (wrist) and left edges so no hard image border shows on the pickguard */
   .hx-target{position:absolute; left:0; top:0; z-index:3; width:34px; height:34px; border-radius:50%; pointer-events:none;
     transform:translate(-50%,-50%); opacity:0; border:2px solid rgba(110,231,255,.95);
     background:radial-gradient(circle, rgba(110,231,255,.30) 0%, rgba(110,231,255,.10) 55%, rgba(110,231,255,0) 72%);
@@ -1713,9 +1715,9 @@
     </div>
     <div class="ai-key-row">
       <input type="text" id="aiModelInput" list="aiModelList" placeholder="Model (default gemini-3.8-flash)" autocomplete="off" spellcheck="false" aria-label="Gemini model name">
-      <datalist id="aiModelList"><option value="gemini-3.8-flash"></option><option value="gemini-3.8-flash-lite"></option><option value="gemini-3.6-flash"></option><option value="gemini-3.5-flash"></option></datalist>
+      <datalist id="aiModelList"><option value="gemini-3.8-flash"></option><option value="gemini-3.6-flash"></option><option value="gemini-3.5-flash"></option></datalist>
     </div>
-    <label for="aiGroqKeyInput">Groq API Key (Optional &middot; Free Tier 3 backup)</label>
+    <label for="aiGroqKeyInput">Groq API Key (Optional &middot; Free Tier 2 backup)</label>
     <div class="ai-key-row">
       <input type="password" id="aiGroqKeyInput" placeholder="Optional: paste your free gsk_ key from console.groq.com/keys" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Groq API key (optional)">
       <button type="button" id="aiGroqKeyShow">Show</button>
@@ -1726,7 +1728,7 @@
       <button type="button" id="aiKeyForget">Forget keys</button>
     </div>
     <div class="ai-cfg-status" id="aiCfgStatus" role="status"></div>
-    <div class="ai-cfg-note">Get a free Gemini key at aistudio.google.com/apikey. Keys are saved only in this browser's localStorage. The Gemini key is sent only to Google (generativelanguage.googleapis.com) and the optional free Groq key (starts with gsk_) only to Groq (api.groq.com), both over HTTPS. Anyone who can use this browser profile could read them, so use keys you can revoke. Answers cascade: Gemini 3.8 Flash, then Gemini 3.8 Flash-Lite, then Groq (only if you added a key; its active chat model is picked automatically), then the built-in engine when you are offline or every online layer fails.</div>
+    <div class="ai-cfg-note">Get a free Gemini key at aistudio.google.com/apikey. Keys are saved only in this browser's localStorage. The Gemini key is sent only to Google (generativelanguage.googleapis.com) and the optional free Groq key (starts with gsk_) only to Groq (api.groq.com), both over HTTPS. Anyone who can use this browser profile could read them, so use keys you can revoke. Answers cascade: Gemini 3.8 Flash, then Groq (only if you added a key; its active chat model is picked automatically), then the built-in engine when you are offline or every online layer fails.</div>
   </div>
   <div class="ai-log" id="aiLog" aria-live="polite"></div>
   <div class="ai-chips" id="aiChips"></div>
@@ -3900,7 +3902,7 @@
   })();
   const HX_CFG = {
     rhW: 0.8,                                  // right-hand width as a fraction of the string span (pickup width)
-    rhScale: 1.4,                              // extra size multiplier (1.35 - 1.45) so the fingers span all 4/5 strings
+    rhScale: 1.4,                              // ~1.4x size so the fingers span all 4/5 strings over the pickups
     rhRot: { h:-90, v:-90 },                   // forearm enters from the LEFT, fingers point RIGHT (art: wrist top, fingers down)
     rhFlip: false,                             // set true if the thumb lands on the wrong (lower) side of the pickups
     rhNudge: { along:0, cross:0 },             // px nudge of the whole right hand (along the neck / across the strings)
@@ -4129,7 +4131,7 @@
     const img = RHX.img;
     if(!img) return null;
     const n = activeStrings().length, kk = rhxK();
-    const W = clampNum(n*STRING_ROW_HEIGHT*HX_CFG.rhW*HX_CFG.rhScale, 118, 336);   // scaled from the pickup / string-span width
+    const W = clampNum(n*STRING_ROW_HEIGHT*HX_CFG.rhW*HX_CFG.rhScale, 118, 470);   // scaled from the pickup / string-span width
     const rot = state.orientation === "vertical" ? HX_CFG.rhRot.v : HX_CFG.rhRot.h, r = rot*Math.PI/180;
     const dir = { x:-Math.sin(r), y:Math.cos(r) };                // direction the fingertips point (screen space)
     const o = orient(LABEL_GUTTER + totalAlongLength() + RHX_U + HX_CFG.rhNudge.along, CROSS_PAD + stringCenterY(clampNum(s, 0, n - 1)) + HX_CFG.rhNudge.cross);
@@ -8996,14 +8998,13 @@
   const GEMINI_KEY_STORE = "bassws_gemini_key_v1";
   const GEMINI_MODEL_STORE = "bassws_gemini_model_v1";
   const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/";
-  const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-3.6-flash", "gemini-3.5-flash"];
+  const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"];
   const GROQ_KEY_STORE = "bassws_groq_key_v1";
   const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
   const GROQ_FALLBACK_MODEL = "llama-3.1-8b-instant";
   const GROQ_MODELS_ENDPOINT = "https://api.groq.com/openai/v1/models";
   const AI_TIMEOUT_MS = 25000;                     // every live AI request waits up to 25 s (slow mobile data)
   const AI_TIER1_MODEL = "gemini-3.8-flash";
-  const AI_TIER2_MODEL = "gemini-3.8-flash-lite";
   AI.key = ""; AI.groqKey = ""; AI.lastTier = ""; AI.model = ""; AI.history = []; AI.busy = false;
 
   function aiStoreGet(k){ try{ return localStorage.getItem(k) || ""; }catch(e){ return ""; } }
@@ -9022,6 +9023,13 @@
       { string:3, fret:5, label:"Fa", finger:1, duration:500 }
     ]}];
     const exHighlight = [{ action:"highlight_notes", key:"F", chord_type:"min7", notes:[0, 3, 7, 10] }];
+    // 10ths: root on the E (or A) string + the 10th (octave + 3rd) on the D (or G) string, walked up the neck in diatonic positions (4-string indices: E=0, A=1, D=2, G=3)
+    const tenths = [[1,2,"F","A"],[3,4,"G","B"],[5,5,"A","C"],[7,7,"B","D"],[8,9,"C","E"],[10,10,"D","F"],[12,12,"E","G"],[13,14,"F","A"]];
+    const exTenths = [{ action:"sequence", key:"C", bpm:84, steps:tenths.reduce(function(acc, t){
+      acc.push({ string:0, fret:t[0], label:t[2], finger:1, duration:420 });
+      acc.push({ string:3, fret:t[1], label:t[3], finger:4, duration:420 });
+      return acc;
+    }, []) }];
     return [
       "You are Professor Bass, a world-class bass guitar teacher embedded in an interactive 24-fret bass fretboard workstation. Answer every bass and music-theory question accurately, warmly and concisely. Your words are read aloud by a text-to-speech voice, so write plain spoken prose of at most about 150 words: no markdown headings, no tables, no emoji, no bullet symbols.",
       "CURRENT APP STATE: master key " + state.key + ", notation " + (state.notation === "solfa" ? "Tonic Solfa" : "Alphabet") + ", strings " + strings + ", 24 frets.",
@@ -9029,7 +9037,7 @@
       "CRITICAL — BOARD COMMAND FORMAT: whenever the user asks to show, play, demonstrate, teach, or generate ANY groove, scale, mode, riff, fill, progression, chord, or exercise, you MUST append a valid JSON command wrapped in <BOARD_CMD>...</BOARD_CMD> tags at the very end of your reply. The board will animate and play it automatically. Example:\n<BOARD_CMD>" + JSON.stringify(exSequence) + "</BOARD_CMD>\nMore examples:\n<BOARD_CMD>" + JSON.stringify(exHighlight) + "</BOARD_CMD>",
       "SEQUENCE ACTION (the primary format): {\"action\":\"sequence\",\"key\":\"C\",\"bpm\":100,\"steps\":[{\"string\":2,\"fret\":3,\"label\":\"Do\",\"finger\":1,\"duration\":500}]}. String index: 0 = LOWEST string (E on 4-string, B on 5-string), 1 = A, 2 = D, 3 = G (4-string). On a 5-string bass: 0 = B, 1 = E, 2 = A, 3 = D, 4 = G. Fret is 0-24. Duration is milliseconds per step. Optional per-step \"tech\":\"slap\" or \"pop\" makes the on-screen right hand slap (thumb) or pop (index). Optional per-step \"link\":\"h\" (hammer-on), \"p\" (pull-off), \"/\" (slide up) or \"\\\\\" (slide down) on a step that stays on the same string animates the left-hand technique with no right-hand pluck. Optional \"action\":\"highlight_notes\" with \"chord_type\" or \"scale_type\" and \"notes\" array of semitone offsets for static chord/scale highlights. Other actions: {\"action\":\"load_lesson\",\"lesson_id\":\"<id>\"}, {\"action\":\"set_notation\",\"mode\":\"solfa\"}, {\"action\":\"set_key\",\"key\":\"D\"}, {\"action\":\"show_mode_boxes\"}, {\"action\":\"show_pivot\"}, {\"action\":\"clear_neck\"}.",
       "Valid lesson ids: " + lessons.join("; ") + ".",
-      "RULES: (a) the <BOARD_CMD>...</BOARD_CMD> tag must contain ONLY valid JSON — no prose, no markdown fences, no explanation. (b) The visible reply should be spoken-brief (≤150 words) and should describe what you are showing. (c) Never mention the tag or explain the JSON to the user — the board handles it silently. (d) Omit the tag only when the question is pure theory with nothing to show (e.g. 'what is a ii-V-I progression?' might still warrant a show; 'what is the circle of fifths?' needs only prose). (e) For scale and mode questions, aim for 8-16 step sequences. (e2) GROOVE LENGTH RULE: when asked to play or demonstrate a groove, bassline, riff or progression across the fretboard, you MUST generate a full 16 to 24 step musical groove in the sequence steps (never a short 4 or 5 note snippet) that walks smoothly across multiple frets AND multiple strings with realistic rhythm, keeping each hop within a comfortable hand span. (e3) MODE BOX RULE: the sequence command may include an optional boolean \"showModeBoxes\":true. Set it to true whenever the user asks to see how a groove connects across mode shapes or mode boxes; the board then lights the seven colored Mode Box outlines while the groove plays so every note is seen moving inside and across the connected boxes. Example: [{\"action\":\"sequence\",\"key\":\"A\",\"bpm\":100,\"showModeBoxes\":true,\"steps\":[ ...16 to 24 steps... ]}]. (f) Keep timings sensible: eighth notes = 250ms at 120bpm, quarter notes = 500ms."
+      "RULES: (a) the <BOARD_CMD>...</BOARD_CMD> tag must contain ONLY valid JSON — no prose, no markdown fences, no explanation. (b) The visible reply should be spoken-brief (≤150 words) and should describe what you are showing. (c) Never mention the tag or explain the JSON to the user — the board handles it silently. (d) Omit the tag only when the question is pure theory with nothing to show (e.g. 'what is a ii-V-I progression?' might still warrant a show; 'what is the circle of fifths?' needs only prose). (e) For scale and mode questions, aim for 8-16 step sequences. (e2) GROOVE LENGTH RULE: when asked to play or demonstrate a groove, bassline, riff or progression across the fretboard, you MUST generate a full 16 to 24 step musical groove in the sequence steps (never a short 4 or 5 note snippet) that walks smoothly across multiple frets AND multiple strings with realistic rhythm, keeping each hop within a comfortable hand span. (e3) MODE BOX RULE: the sequence command may include an optional boolean \"showModeBoxes\":true. Set it to true whenever the user asks to see how a groove connects across mode shapes or mode boxes; the board then lights the seven colored Mode Box outlines while the groove plays so every note is seen moving inside and across the connected boxes. Example: [{\"action\":\"sequence\",\"key\":\"A\",\"bpm\":100,\"showModeBoxes\":true,\"steps\":[ ...16 to 24 steps... ]}]. (f) Keep timings sensible: eighth notes = 250ms at 120bpm, quarter notes = 500ms. (g) 10THS RULE: when the user asks for 10ths, tenths, 10th intervals or 10th chord voicings, build each shape as a two-note dyad: the ROOT on the E or A string and the 10th (an octave plus a 3rd: 16 semitones for a major 10th, 15 for a minor 10th) on the D or G string. Fret maths from a root at fret r: root on E string + 10th on G string = r+1 for a major 10th and r for a minor 10th (C major 10th: E string fret 8 + G string fret 9; D minor 10th: E string fret 10 + G string fret 10; F major 10th: E fret 1 + G fret 2; A minor 10th: E fret 5 + G fret 5). Root on E string + 10th on D string = r+6 major or r+5 minor. Root on A string + 10th on G string = r+6 major or r+5 minor. Root on A string + 10th on D string = r+11 major or r+10 minor (low roots only). On a 5-string bass shift every string index up by one (B = 0). Play each dyad as two consecutive steps (root, then the 10th, a comfortable stretch of one hand span with finger 1 on the root and finger 4 on the 10th) and WALK the shape through at least five different neck positions: step through the scale or chord progression the user names (diatonic 10ths of a major key are major on I, IV and V and minor on ii, iii, vi and vii), or move the shape up and down the neck in a progression, switching between the E-string root and the A-string root where it keeps the hand low. NEVER answer a 10ths request by repeating one 4-note arpeggio: the sequence must contain 16 to 24 steps made of different dyad positions, and your spoken reply should name the first two or three shapes with their string and fret numbers. Example (C major diatonic 10ths walked up the neck, 16 steps): <BOARD_CMD>" + JSON.stringify(exTenths) + "</BOARD_CMD>"
     ].join("\n\n");
   }
   function aiGeminiBody(q, rawMode){
@@ -9040,7 +9048,7 @@
     if(att) parts.unshift({ inline_data:{ mime_type:att.mime, data:att.data } });   // image / PDF / text goes first, then the question
     contents.push({ role:"user", parts:parts });
     const sys = rawMode ? "Reply briefly." : aiSystemPrompt() + (att ? "\n\nATTACHMENT: the user attached a file (" + att.name + "). Read it carefully: it is probably bass tab, a chord chart, a scale diagram or sheet music. Explain what it shows in plain language, then demonstrate the main idea on the fretboard with a <BOARD_CMD> block." : "");
-    return { system_instruction:{ parts:[{ text:sys }] }, contents:contents, generationConfig:{ temperature:0.6, maxOutputTokens:4096 } };
+    return { system_instruction:{ parts:[{ text:sys }] }, contents:contents, generationConfig:{ temperature:0.6, maxOutputTokens:4096, thinkingConfig:{ thinkingBudget:0 } } };   // thinking off: answers in 1-2 s instead of timing out
   }
   async function aiGemini(q, rawMode, models){
     const key = AI.key;
@@ -9065,6 +9073,7 @@
         let msg = resp.statusText;
         try{ const j = await resp.json(); if(j && j.error && j.error.message) msg = j.error.message; }catch(e){}
         last = { status:resp.status, msg:msg };
+        if(resp.status === 400 && /thinking/i.test(msg || "") && body.generationConfig && body.generationConfig.thinkingConfig){ delete body.generationConfig.thinkingConfig; m--; continue; }
         if(resp.status === 404 || resp.status === 429 || resp.status === 503) continue;
         throw last;
       }
@@ -9086,7 +9095,8 @@
     const key = AI.key;
     const preferred = AI.model || GEMINI_MODELS[0];
     const chain = (models && models.length) ? models : [preferred].concat(GEMINI_MODELS.filter(function(m){ return m !== preferred; }));
-    const body = JSON.stringify(aiGeminiBody(q, false));
+    const bodyObj = aiGeminiBody(q, false);
+    let body = JSON.stringify(bodyObj);
     let last = null;
     for(let m = 0; m < chain.length; m++){
       const ctrl = new AbortController();
@@ -9105,6 +9115,7 @@
         let msg = resp.statusText;
         try{ const j = await resp.json(); if(j && j.error && j.error.message) msg = j.error.message; }catch(e){}
         last = { status:resp.status, msg:msg };
+        if(resp.status === 400 && /thinking/i.test(msg || "") && bodyObj.generationConfig && bodyObj.generationConfig.thinkingConfig){ delete bodyObj.generationConfig.thinkingConfig; body = JSON.stringify(bodyObj); m--; continue; }
         if(resp.status === 404 || resp.status === 429 || resp.status === 503) continue;
         throw last;
       }
@@ -9259,32 +9270,19 @@
     if(!full.trim()) throw aiGroqErr(null, { status:0, empty:true, msg:"empty" });
     return { text:full.trim(), model:model };
   }
-  /* ---------- The cascade: Gemini 3.8 Flash -> Gemini 3.8 Flash-Lite -> Groq -> (caller falls back to the offline engine) ---------- */
+  /* ---------- The cascade: Gemini 3.8 Flash -> Groq -> (caller falls back to the offline engine) ---------- */
   async function aiCascade(q, onText){
     const att = AI.sendAttach;
     const reasons = [];
-    let skipLite = false;
     if(AI.key){
       const t1 = AI.model || AI_TIER1_MODEL;
       try{
         const g = await aiGeminiStream(q, onText, [t1]);
-        g.tier = (t1 === AI_TIER2_MODEL) ? "flashlite" : "gemini";
+        g.tier = "gemini";
         g.detail = "Answered by " + g.model;
         return g;
       }catch(err){
-        reasons.push(aiErrorReason(err, t1 === AI_TIER2_MODEL ? "Flash-Lite" : "Gemini"));
-        if(err && (err.status === 400 || err.status === 401 || err.status === 403)) skipLite = true;   // same key: Flash-Lite would be rejected too
-      }
-      if(!skipLite && t1 !== AI_TIER2_MODEL){
-        try{ onText(""); }catch(e){}
-        try{
-          const g = await aiGeminiStream(q, onText, [AI_TIER2_MODEL]);
-          g.tier = "flashlite";
-          g.detail = "Gemini Flash was unavailable, so Gemini 3.8 Flash-Lite answered";
-          return g;
-        }catch(err){
-          reasons.push(aiErrorReason(err, "Flash-Lite"));
-        }
+        reasons.push(aiErrorReason(err, "Gemini"));
       }
     }
     if(AI.groqKey && !att){
@@ -9813,9 +9811,9 @@
     const pill = document.getElementById("aiPill");
     if(!pill) return;
     const map = {
-      gemini:["Gemini", "ok"], flashlite:["Flash-Lite", "ok"], groq:["Groq", "ok"], thinking:["Thinking\u2026", "ok"], local:["Offline engine", "warn"], offline:["Offline", "warn"], error:["Fallback", "warn"]
+      gemini:["Gemini", "ok"], groq:["Groq", "ok"], thinking:["Thinking\u2026", "ok"], local:["Offline engine", "warn"], offline:["Offline", "warn"], error:["Fallback", "warn"]
     };
-    const titles = { gemini:"Answers come from Google Gemini 3.8 Flash (Tier 1)", flashlite:"Answers come from Google Gemini 3.8 Flash-Lite (Tier 2)", groq:"Answers come from Groq (Tier 3)" };
+    const titles = { gemini:"Answers come from Google Gemini 3.8 Flash (Tier 1)", groq:"Answers come from Groq (Tier 2)" };
     const m = map[kind] || map.local;
     pill.textContent = "\u25CF " + m[0];
     pill.className = "ai-pill " + m[1];
@@ -9830,7 +9828,7 @@
   function aiRefreshPill(){
     const any = AI.key || AI.groqKey;
     if(any && navigator.onLine !== false){
-      if(AI.lastTier === "flashlite" || AI.lastTier === "groq") aiUpdatePill(AI.lastTier);
+      if(AI.lastTier === "groq") aiUpdatePill(AI.lastTier);
       else aiUpdatePill(AI.key ? "gemini" : "groq");
     }
     else if(any) aiUpdatePill("offline", "No internet connection: using the built-in engine");
@@ -9894,7 +9892,7 @@
       const mdl = modelIn.value.trim();
       if(mdl){ aiStoreSet(GEMINI_MODEL_STORE, mdl); AI.model = mdl; } else { aiStoreDel(GEMINI_MODEL_STORE); AI.model = ""; }
       AI.lastTier = "";
-      const chainTxt = (k ? "Gemini Flash \u2192 Flash-Lite" : "") + (k && d ? " \u2192 " : "") + (d ? "Groq" : "") + " \u2192 built-in engine";
+      const chainTxt = (k ? "Gemini Flash" : "") + (k && d ? " \u2192 " : "") + (d ? "Groq" : "") + " \u2192 built-in engine";
       aiCfgStatus(ok ? "Saved in this browser. Answer order: " + chainTxt + "." : "Could not write to localStorage: the keys will last until you close this tab.", !ok);
       aiRefreshPill();
     });
