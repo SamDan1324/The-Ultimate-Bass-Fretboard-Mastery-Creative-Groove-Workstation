@@ -1712,8 +1712,8 @@
       <button type="button" id="aiKeyShow">Show</button>
     </div>
     <div class="ai-key-row">
-      <input type="text" id="aiModelInput" list="aiModelList" placeholder="Model (default gemini-2.5-flash)" autocomplete="off" spellcheck="false" aria-label="Gemini model name">
-      <datalist id="aiModelList"><option value="gemini-2.5-flash"></option><option value="gemini-2.5-flash-lite"></option><option value="gemini-3.5-flash"></option><option value="gemini-3.6-flash"></option></datalist>
+      <input type="text" id="aiModelInput" list="aiModelList" placeholder="Model (default gemini-3.8-flash)" autocomplete="off" spellcheck="false" aria-label="Gemini model name">
+      <datalist id="aiModelList"><option value="gemini-3.8-flash"></option><option value="gemini-3.8-flash-lite"></option><option value="gemini-3.6-flash"></option><option value="gemini-3.5-flash"></option></datalist>
     </div>
     <label for="aiGroqKeyInput">Groq API Key (Optional &middot; Free Tier 3 backup)</label>
     <div class="ai-key-row">
@@ -1726,7 +1726,7 @@
       <button type="button" id="aiKeyForget">Forget keys</button>
     </div>
     <div class="ai-cfg-status" id="aiCfgStatus" role="status"></div>
-    <div class="ai-cfg-note">Get a free Gemini key at aistudio.google.com/apikey. Keys are saved only in this browser's localStorage. The Gemini key is sent only to Google (generativelanguage.googleapis.com) and the optional free Groq key (starts with gsk_) only to Groq (api.groq.com), both over HTTPS. Anyone who can use this browser profile could read them, so use keys you can revoke. Answers cascade: Gemini 2.5 Flash, then Gemini 2.5 Flash-Lite, then Groq llama-3.3-70b-versatile (only if you added a key), then the built-in engine when you are offline or every online layer fails.</div>
+    <div class="ai-cfg-note">Get a free Gemini key at aistudio.google.com/apikey. Keys are saved only in this browser's localStorage. The Gemini key is sent only to Google (generativelanguage.googleapis.com) and the optional free Groq key (starts with gsk_) only to Groq (api.groq.com), both over HTTPS. Anyone who can use this browser profile could read them, so use keys you can revoke. Answers cascade: Gemini 3.8 Flash, then Gemini 3.8 Flash-Lite, then Groq (only if you added a key; its active chat model is picked automatically), then the built-in engine when you are offline or every online layer fails.</div>
   </div>
   <div class="ai-log" id="aiLog" aria-live="polite"></div>
   <div class="ai-chips" id="aiChips"></div>
@@ -8996,13 +8996,14 @@
   const GEMINI_KEY_STORE = "bassws_gemini_key_v1";
   const GEMINI_MODEL_STORE = "bassws_gemini_model_v1";
   const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/";
-  const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash"];
+  const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-3.6-flash", "gemini-3.5-flash"];
   const GROQ_KEY_STORE = "bassws_groq_key_v1";
   const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-  const GROQ_MODEL = "llama-3.3-70b-versatile";
+  const GROQ_FALLBACK_MODEL = "llama-3.1-8b-instant";
+  const GROQ_MODELS_ENDPOINT = "https://api.groq.com/openai/v1/models";
   const AI_TIMEOUT_MS = 25000;                     // every live AI request waits up to 25 s (slow mobile data)
-  const AI_TIER1_MODEL = "gemini-2.5-flash";
-  const AI_TIER2_MODEL = "gemini-2.5-flash-lite";
+  const AI_TIER1_MODEL = "gemini-3.8-flash";
+  const AI_TIER2_MODEL = "gemini-3.8-flash-lite";
   AI.key = ""; AI.groqKey = ""; AI.lastTier = ""; AI.model = ""; AI.history = []; AI.busy = false;
 
   function aiStoreGet(k){ try{ return localStorage.getItem(k) || ""; }catch(e){ return ""; } }
@@ -9159,7 +9160,43 @@
     if(err){ e.abort = err.name === "AbortError"; e.net = (err instanceof TypeError); e.msg = err.message || ""; }
     return e;
   }
+  // asks Groq which models are live for this key and takes the first chat model (no whisper / guard / speech / embedding); falls back to llama-3.1-8b-instant
+  async function aiGroqPickModel(key){
+    if(AI.groqModelCache && AI.groqModelCache.key === key) return AI.groqModelCache.id;
+    let id = GROQ_FALLBACK_MODEL;
+    const ctrl = new AbortController();
+    const to = setTimeout(function(){ ctrl.abort(); }, 10000);
+    try{
+      const r = await fetch(GROQ_MODELS_ENDPOINT, { headers:{ "Authorization":"Bearer " + key }, signal:ctrl.signal });
+      if(r.ok){
+        const j = await r.json();
+        const list = (j && j.data) || [];
+        for(let i = 0; i < list.length; i++){
+          const m = list[i], mid = m && m.id ? String(m.id) : "";
+          if(!mid || m.active === false) continue;
+          if(/whisper|guard|tts|orpheus|playai|embed/i.test(mid)) continue;
+          id = mid; break;
+        }
+        AI.groqModelCache = { key:key, id:id };
+      }
+    }catch(e){}
+    clearTimeout(to);
+    return id;
+  }
   async function aiGroqStream(q, onText, key, rawMode){
+    const picked = await aiGroqPickModel(key);
+    try{
+      return await aiGroqStreamWith(q, onText, key, rawMode, picked);
+    }catch(err){
+      const gone = err && (err.status === 404 || (err.status === 400 && /decommission|not exist|not found|no longer/i.test(err.msg || "")));
+      if(gone){
+        AI.groqModelCache = null;
+        if(picked !== GROQ_FALLBACK_MODEL) return await aiGroqStreamWith(q, onText, key, rawMode, GROQ_FALLBACK_MODEL);
+      }
+      throw err;
+    }
+  }
+  async function aiGroqStreamWith(q, onText, key, rawMode, model){
     const msgs = [{ role:"system", content: rawMode ? "Reply briefly." : aiSystemPrompt() }];
     if(!rawMode) AI.history.slice(-8).forEach(function(h){ msgs.push({ role: h.role === "model" ? "assistant" : "user", content:h.text }); });
     msgs.push({ role:"user", content:q });
@@ -9170,7 +9207,7 @@
       resp = await fetch(GROQ_ENDPOINT, {
         method:"POST",
         headers:{ "Content-Type":"application/json", "Authorization":"Bearer " + key },
-        body:JSON.stringify({ model:GROQ_MODEL, messages:msgs, stream:true, temperature:0.6, max_tokens:4096 }),
+        body:JSON.stringify({ model:model, messages:msgs, stream:true, temperature:0.6, max_tokens:4096 }),
         signal:ctrl.signal
       });
     }catch(err){ clearTimeout(to); throw aiGroqErr(err); }
@@ -9215,14 +9252,14 @@
       }
     }catch(err){
       clearTimeout(to);
-      if(full.length > 80) return { text:full.trim(), model:GROQ_MODEL, partial:true };
+      if(full.length > 80) return { text:full.trim(), model:model, partial:true };
       throw aiGroqErr(err);
     }
     clearTimeout(to);
     if(!full.trim()) throw aiGroqErr(null, { status:0, empty:true, msg:"empty" });
-    return { text:full.trim(), model:GROQ_MODEL };
+    return { text:full.trim(), model:model };
   }
-  /* ---------- The cascade: Gemini 2.5 Flash -> Gemini 2.5 Flash-Lite -> Groq -> (caller falls back to the offline engine) ---------- */
+  /* ---------- The cascade: Gemini 3.8 Flash -> Gemini 3.8 Flash-Lite -> Groq -> (caller falls back to the offline engine) ---------- */
   async function aiCascade(q, onText){
     const att = AI.sendAttach;
     const reasons = [];
@@ -9243,7 +9280,7 @@
         try{
           const g = await aiGeminiStream(q, onText, [AI_TIER2_MODEL]);
           g.tier = "flashlite";
-          g.detail = "Gemini Flash was unavailable, so Gemini 2.5 Flash-Lite answered";
+          g.detail = "Gemini Flash was unavailable, so Gemini 3.8 Flash-Lite answered";
           return g;
         }catch(err){
           reasons.push(aiErrorReason(err, "Flash-Lite"));
@@ -9255,7 +9292,7 @@
       try{
         const g = await aiGroqStream(q, onText, AI.groqKey, false);
         g.tier = "groq";
-        g.detail = "The Gemini layers were unavailable, so Groq answered";
+        g.detail = "The Gemini layers were unavailable, so Groq answered (" + g.model + ")";
         return g;
       }catch(err){
         reasons.push(aiErrorReason(err));
@@ -9778,7 +9815,7 @@
     const map = {
       gemini:["Gemini", "ok"], flashlite:["Flash-Lite", "ok"], groq:["Groq", "ok"], thinking:["Thinking\u2026", "ok"], local:["Offline engine", "warn"], offline:["Offline", "warn"], error:["Fallback", "warn"]
     };
-    const titles = { gemini:"Answers come from Google Gemini 2.5 Flash (Tier 1)", flashlite:"Answers come from Google Gemini 2.5 Flash-Lite (Tier 2)", groq:"Answers come from Groq (Tier 3)" };
+    const titles = { gemini:"Answers come from Google Gemini 3.8 Flash (Tier 1)", flashlite:"Answers come from Google Gemini 3.8 Flash-Lite (Tier 2)", groq:"Answers come from Groq (Tier 3)" };
     const m = map[kind] || map.local;
     pill.textContent = "\u25CF " + m[0];
     pill.className = "ai-pill " + m[1];
@@ -9885,8 +9922,8 @@
       if(d.length >= 20){
         try{
           let txt = "";
-          await aiGroqStream("Reply with the single word OK.", function(t){ txt = t; }, d, true);
-          out.push("Groq connected: replied \u201C" + txt.slice(0, 30) + "\u201D.");
+          const gq = await aiGroqStream("Reply with the single word OK.", function(t){ txt = t; }, d, true);
+          out.push("Groq connected (" + gq.model + "): replied \u201C" + txt.slice(0, 30) + "\u201D.");
         }catch(err){ bad = true; out.push("Groq test failed: " + aiErrorDetail(err)); }
       }
       aiCfgStatus(out.join(" ") + (bad ? "" : " Press Save keys to keep them."), bad);
