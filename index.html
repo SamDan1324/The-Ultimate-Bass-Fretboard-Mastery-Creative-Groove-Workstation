@@ -8473,10 +8473,17 @@
       if(man) man.click();
     }
     const name = NOTES[pc];
+    const sel = document.getElementById("keySelect");
+    if(sel && sel.value !== name) sel.value = name;      // the selector always mirrors the key the board command asked for
     if(state.key === name) return;
     state.key = name;
-    document.getElementById("keySelect").value = name;
     refreshMode(false);
+  }
+  // wipes every AI marker left over from the previous key (gold root dots, ghosts, path, chips, tips) before a new sequence is lit
+  function aiClearStaleRoots(){
+    aiOverlay = {};
+    AI.path = null; AI.chips = false; AI.chipActive = -1; AI.rhBadge = null; AI.tip = null; AI.modes = null; AI.tlNow = null;
+    document.querySelectorAll(".marker.ai-marker").forEach(function(el){ if(el.parentNode) el.parentNode.removeChild(el); });
   }
   function aiSetNotation(mode){
     if(state.notation === mode) return;
@@ -8578,7 +8585,11 @@
     if(!spec) return;
     if(spec.timeline) aiPrepareCanvas();
     if(spec.notation) aiSetNotation(spec.notation);
-    if(spec.key !== undefined && spec.key !== null) aiSetKey(spec.key);
+    if(spec.key !== undefined && spec.key !== null){
+      aiClearStaleRoots();          // old key's gold root dots go first ...
+      aiSetKey(spec.key);           // ... then the root-key selector / state follow the command's "key"
+      if(!spec.timeline && !spec.lesson) renderFretboard();
+    }
     if(spec.lesson){ aiLoadLesson(spec.lesson); aiRevealNeck(); return; }
     if(spec.timeline){
       aiLockControls(spec.timeline);
@@ -9003,7 +9014,8 @@
   const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
   const GROQ_FALLBACK_MODEL = "llama-3.1-8b-instant";
   const GROQ_MODELS_ENDPOINT = "https://api.groq.com/openai/v1/models";
-  const AI_TIMEOUT_MS = 25000;                     // every live AI request waits up to 25 s (slow mobile data)
+  const AI_TIMEOUT_MS = 25000;                     // Groq waits up to 25 s
+  const AI_GEMINI_TIMEOUT_MS = 12000;              // Gemini gets 12 s, then the cascade rolls straight over to Groq
   const AI_TIER1_MODEL = "gemini-3.8-flash";
   AI.key = ""; AI.groqKey = ""; AI.lastTier = ""; AI.model = ""; AI.history = []; AI.busy = false;
 
@@ -9037,7 +9049,7 @@
       "CRITICAL — BOARD COMMAND FORMAT: whenever the user asks to show, play, demonstrate, teach, or generate ANY groove, scale, mode, riff, fill, progression, chord, or exercise, you MUST append a valid JSON command wrapped in <BOARD_CMD>...</BOARD_CMD> tags at the very end of your reply. The board will animate and play it automatically. Example:\n<BOARD_CMD>" + JSON.stringify(exSequence) + "</BOARD_CMD>\nMore examples:\n<BOARD_CMD>" + JSON.stringify(exHighlight) + "</BOARD_CMD>",
       "SEQUENCE ACTION (the primary format): {\"action\":\"sequence\",\"key\":\"C\",\"bpm\":100,\"steps\":[{\"string\":2,\"fret\":3,\"label\":\"Do\",\"finger\":1,\"duration\":500}]}. String index: 0 = LOWEST string (E on 4-string, B on 5-string), 1 = A, 2 = D, 3 = G (4-string). On a 5-string bass: 0 = B, 1 = E, 2 = A, 3 = D, 4 = G. Fret is 0-24. Duration is milliseconds per step. Optional per-step \"tech\":\"slap\" or \"pop\" makes the on-screen right hand slap (thumb) or pop (index). Optional per-step \"link\":\"h\" (hammer-on), \"p\" (pull-off), \"/\" (slide up) or \"\\\\\" (slide down) on a step that stays on the same string animates the left-hand technique with no right-hand pluck. Optional \"action\":\"highlight_notes\" with \"chord_type\" or \"scale_type\" and \"notes\" array of semitone offsets for static chord/scale highlights. Other actions: {\"action\":\"load_lesson\",\"lesson_id\":\"<id>\"}, {\"action\":\"set_notation\",\"mode\":\"solfa\"}, {\"action\":\"set_key\",\"key\":\"D\"}, {\"action\":\"show_mode_boxes\"}, {\"action\":\"show_pivot\"}, {\"action\":\"clear_neck\"}.",
       "Valid lesson ids: " + lessons.join("; ") + ".",
-      "RULES: (a) the <BOARD_CMD>...</BOARD_CMD> tag must contain ONLY valid JSON — no prose, no markdown fences, no explanation. (b) The visible reply should be spoken-brief (≤150 words) and should describe what you are showing. (c) Never mention the tag or explain the JSON to the user — the board handles it silently. (d) Omit the tag only when the question is pure theory with nothing to show (e.g. 'what is a ii-V-I progression?' might still warrant a show; 'what is the circle of fifths?' needs only prose). (e) For scale and mode questions, aim for 8-16 step sequences. (e2) GROOVE LENGTH RULE: when asked to play or demonstrate a groove, bassline, riff or progression across the fretboard, you MUST generate a full 16 to 24 step musical groove in the sequence steps (never a short 4 or 5 note snippet) that walks smoothly across multiple frets AND multiple strings with realistic rhythm, keeping each hop within a comfortable hand span. (e3) MODE BOX RULE: the sequence command may include an optional boolean \"showModeBoxes\":true. Set it to true whenever the user asks to see how a groove connects across mode shapes or mode boxes; the board then lights the seven colored Mode Box outlines while the groove plays so every note is seen moving inside and across the connected boxes. Example: [{\"action\":\"sequence\",\"key\":\"A\",\"bpm\":100,\"showModeBoxes\":true,\"steps\":[ ...16 to 24 steps... ]}]. (f) Keep timings sensible: eighth notes = 250ms at 120bpm, quarter notes = 500ms. (g) 10THS RULE: when the user asks for 10ths, tenths, 10th intervals or 10th chord voicings, build each shape as a two-note dyad: the ROOT on the E or A string and the 10th (an octave plus a 3rd: 16 semitones for a major 10th, 15 for a minor 10th) on the D or G string. Fret maths from a root at fret r: root on E string + 10th on G string = r+1 for a major 10th and r for a minor 10th (C major 10th: E string fret 8 + G string fret 9; D minor 10th: E string fret 10 + G string fret 10; F major 10th: E fret 1 + G fret 2; A minor 10th: E fret 5 + G fret 5). Root on E string + 10th on D string = r+6 major or r+5 minor. Root on A string + 10th on G string = r+6 major or r+5 minor. Root on A string + 10th on D string = r+11 major or r+10 minor (low roots only). On a 5-string bass shift every string index up by one (B = 0). Play each dyad as two consecutive steps (root, then the 10th, a comfortable stretch of one hand span with finger 1 on the root and finger 4 on the 10th) and WALK the shape through at least five different neck positions: step through the scale or chord progression the user names (diatonic 10ths of a major key are major on I, IV and V and minor on ii, iii, vi and vii), or move the shape up and down the neck in a progression, switching between the E-string root and the A-string root where it keeps the hand low. NEVER answer a 10ths request by repeating one 4-note arpeggio: the sequence must contain 16 to 24 steps made of different dyad positions, and your spoken reply should name the first two or three shapes with their string and fret numbers. Example (C major diatonic 10ths walked up the neck, 16 steps): <BOARD_CMD>" + JSON.stringify(exTenths) + "</BOARD_CMD>"
+      "RULES: (a) the <BOARD_CMD>...</BOARD_CMD> tag must contain ONLY valid JSON — no prose, no markdown fences, no explanation. (b) The visible reply should be spoken-brief (≤150 words) and should describe what you are showing. (c) Never mention the tag or explain the JSON to the user — the board handles it silently. (d) Omit the tag only when the question is pure theory with nothing to show (e.g. 'what is a ii-V-I progression?' might still warrant a show; 'what is the circle of fifths?' needs only prose). (e) For scale and mode questions, aim for 8-16 step sequences. (e2) GROOVE LENGTH RULE: when asked to play or demonstrate a full groove, bassline, riff, fill (including multi-bar fills) or progression, or to play alongside a piano, chords or a chord progression, you MUST generate a complete 24 to 32 step musical sequence (never a short 4 or 5 note snippet and never fewer than 24 steps) that covers multiple neck positions (at least four different fret regions: low, middle and upper) AND multiple strings with realistic rhythm, keeping each hop within a comfortable hand span. Follow the chord changes bar by bar when playing along with piano or chords: root on the downbeat, then chord tones, passing notes and a fill into the next bar. Always write the whole JSON array and close the BOARD_CMD tag; never stop early. (e3) MODE BOX RULE: the sequence command may include an optional boolean \"showModeBoxes\":true. Set it to true whenever the user asks to see how a groove connects across mode shapes or mode boxes; the board then lights the seven colored Mode Box outlines while the groove plays so every note is seen moving inside and across the connected boxes. Example: [{\"action\":\"sequence\",\"key\":\"A\",\"bpm\":100,\"showModeBoxes\":true,\"steps\":[ ...24 to 32 steps... ]}]. (f) Keep timings sensible: eighth notes = 250ms at 120bpm, quarter notes = 500ms. (g) 10THS RULE: when the user asks for 10ths, tenths, 10th intervals or 10th chord voicings, build each shape as a two-note dyad: the ROOT on the E or A string and the 10th (an octave plus a 3rd: 16 semitones for a major 10th, 15 for a minor 10th) on the D or G string. Fret maths from a root at fret r: root on E string + 10th on G string = r+1 for a major 10th and r for a minor 10th (C major 10th: E string fret 8 + G string fret 9; D minor 10th: E string fret 10 + G string fret 10; F major 10th: E fret 1 + G fret 2; A minor 10th: E fret 5 + G fret 5). Root on E string + 10th on D string = r+6 major or r+5 minor. Root on A string + 10th on G string = r+6 major or r+5 minor. Root on A string + 10th on D string = r+11 major or r+10 minor (low roots only). On a 5-string bass shift every string index up by one (B = 0). Play each dyad as two consecutive steps (root, then the 10th, a comfortable stretch of one hand span with finger 1 on the root and finger 4 on the 10th) and WALK the shape through at least five different neck positions: step through the scale or chord progression the user names (diatonic 10ths of a major key are major on I, IV and V and minor on ii, iii, vi and vii), or move the shape up and down the neck in a progression, switching between the E-string root and the A-string root where it keeps the hand low. NEVER answer a 10ths request by repeating one 4-note arpeggio: the sequence must contain 16 to 24 steps made of different dyad positions, and your spoken reply should name the first two or three shapes with their string and fret numbers. Example (C major diatonic 10ths walked up the neck, 16 steps): <BOARD_CMD>" + JSON.stringify(exTenths) + "</BOARD_CMD>"
     ].join("\n\n");
   }
   function aiGeminiBody(q, rawMode){
@@ -9048,7 +9060,7 @@
     if(att) parts.unshift({ inline_data:{ mime_type:att.mime, data:att.data } });   // image / PDF / text goes first, then the question
     contents.push({ role:"user", parts:parts });
     const sys = rawMode ? "Reply briefly." : aiSystemPrompt() + (att ? "\n\nATTACHMENT: the user attached a file (" + att.name + "). Read it carefully: it is probably bass tab, a chord chart, a scale diagram or sheet music. Explain what it shows in plain language, then demonstrate the main idea on the fretboard with a <BOARD_CMD> block." : "");
-    return { system_instruction:{ parts:[{ text:sys }] }, contents:contents, generationConfig:{ temperature:0.6, maxOutputTokens:4096, thinkingConfig:{ thinkingBudget:0 } } };   // thinking off: answers in 1-2 s instead of timing out
+    return { contents:contents, systemInstruction:{ parts:[{ text:sys }] }, generationConfig:{ maxOutputTokens:4096 } };   // clean standard payload
   }
   async function aiGemini(q, rawMode, models){
     const key = AI.key;
@@ -9058,7 +9070,7 @@
     let last = null;
     for(let m = 0; m < chain.length; m++){
       const ctrl = new AbortController();
-      const to = setTimeout(function(){ ctrl.abort(); }, AI_TIMEOUT_MS);
+      const to = setTimeout(function(){ ctrl.abort(); }, AI_GEMINI_TIMEOUT_MS);
       let resp;
       try{
         resp = await fetch(GEMINI_ENDPOINT + encodeURIComponent(chain[m]) + ":generateContent", {
@@ -9073,7 +9085,6 @@
         let msg = resp.statusText;
         try{ const j = await resp.json(); if(j && j.error && j.error.message) msg = j.error.message; }catch(e){}
         last = { status:resp.status, msg:msg };
-        if(resp.status === 400 && /thinking/i.test(msg || "") && body.generationConfig && body.generationConfig.thinkingConfig){ delete body.generationConfig.thinkingConfig; m--; continue; }
         if(resp.status === 404 || resp.status === 429 || resp.status === 503) continue;
         throw last;
       }
@@ -9095,12 +9106,11 @@
     const key = AI.key;
     const preferred = AI.model || GEMINI_MODELS[0];
     const chain = (models && models.length) ? models : [preferred].concat(GEMINI_MODELS.filter(function(m){ return m !== preferred; }));
-    const bodyObj = aiGeminiBody(q, false);
-    let body = JSON.stringify(bodyObj);
+    const body = JSON.stringify(aiGeminiBody(q, false));
     let last = null;
     for(let m = 0; m < chain.length; m++){
       const ctrl = new AbortController();
-      let to = setTimeout(function(){ ctrl.abort(); }, AI_TIMEOUT_MS);
+      let to = setTimeout(function(){ ctrl.abort(); }, AI_GEMINI_TIMEOUT_MS);
       let resp;
       try{
         resp = await fetch(GEMINI_ENDPOINT + encodeURIComponent(chain[m]) + ":streamGenerateContent?alt=sse", {
@@ -9115,7 +9125,6 @@
         let msg = resp.statusText;
         try{ const j = await resp.json(); if(j && j.error && j.error.message) msg = j.error.message; }catch(e){}
         last = { status:resp.status, msg:msg };
-        if(resp.status === 400 && /thinking/i.test(msg || "") && bodyObj.generationConfig && bodyObj.generationConfig.thinkingConfig){ delete bodyObj.generationConfig.thinkingConfig; body = JSON.stringify(bodyObj); m--; continue; }
         if(resp.status === 404 || resp.status === 429 || resp.status === 503) continue;
         throw last;
       }
@@ -9143,7 +9152,7 @@
           const r = await reader.read();
           if(r.done) break;
           clearTimeout(to);
-          to = setTimeout(function(){ ctrl.abort(); }, AI_TIMEOUT_MS);
+          to = setTimeout(function(){ ctrl.abort(); }, AI_GEMINI_TIMEOUT_MS);
           buf += dec.decode(r.value, { stream:true });
           let nl;
           while((nl = buf.indexOf("\n")) >= 0){
@@ -9164,7 +9173,7 @@
     }
     throw last || { status:0, msg:"no response" };
   }
-  /* ---------- Tier 3: Groq (optional, OpenAI-compatible streaming) ---------- */
+  /* ---------- Tier 2: Groq (optional, OpenAI-compatible streaming) ---------- */
   function aiGroqErr(err, extra){
     const e = extra || {};
     e.provider = "groq";
@@ -9196,21 +9205,35 @@
   }
   async function aiGroqStream(q, onText, key, rawMode){
     const picked = await aiGroqPickModel(key);
+    const go = async function(model){
+      try{
+        return await aiGroqStreamWith(q, onText, key, rawMode, model, false);
+      }catch(err){
+        // reasoning_effort is only accepted by some models: retry once without it
+        if(err && err.status === 400 && /reasoning/i.test(err.msg || "")) return await aiGroqStreamWith(q, onText, key, rawMode, model, true);
+        throw err;
+      }
+    };
     try{
-      return await aiGroqStreamWith(q, onText, key, rawMode, picked);
+      return await go(picked);
     }catch(err){
       const gone = err && (err.status === 404 || (err.status === 400 && /decommission|not exist|not found|no longer/i.test(err.msg || "")));
       if(gone){
         AI.groqModelCache = null;
-        if(picked !== GROQ_FALLBACK_MODEL) return await aiGroqStreamWith(q, onText, key, rawMode, GROQ_FALLBACK_MODEL);
+        if(picked !== GROQ_FALLBACK_MODEL) return await go(GROQ_FALLBACK_MODEL);
       }
       throw err;
     }
   }
-  async function aiGroqStreamWith(q, onText, key, rawMode, model){
+  async function aiGroqStreamWith(q, onText, key, rawMode, model, noReasoning){
     const msgs = [{ role:"system", content: rawMode ? "Reply briefly." : aiSystemPrompt() }];
     if(!rawMode) AI.history.slice(-8).forEach(function(h){ msgs.push({ role: h.role === "model" ? "assistant" : "user", content:h.text }); });
     msgs.push({ role:"user", content:q });
+    const payload = { model:model, messages:msgs, stream:true, temperature:0.6, max_tokens:4096 };   // 4096 tokens: room for 24-32 step grooves and multi-bar fills
+    if(!noReasoning){
+      if(/qwen3/i.test(model)) payload.reasoning_effort = "none";        // no hidden thinking on reasoning models that support it
+      else if(/gpt-oss/i.test(model)) payload.reasoning_effort = "low";   // gpt-oss cannot switch thinking off entirely
+    }
     const ctrl = new AbortController();
     let to = setTimeout(function(){ ctrl.abort(); }, AI_TIMEOUT_MS);
     let resp;
@@ -9218,7 +9241,7 @@
       resp = await fetch(GROQ_ENDPOINT, {
         method:"POST",
         headers:{ "Content-Type":"application/json", "Authorization":"Bearer " + key },
-        body:JSON.stringify({ model:model, messages:msgs, stream:true, temperature:0.6, max_tokens:4096 }),
+        body:JSON.stringify(payload),
         signal:ctrl.signal
       });
     }catch(err){ clearTimeout(to); throw aiGroqErr(err); }
@@ -9263,12 +9286,12 @@
       }
     }catch(err){
       clearTimeout(to);
-      if(full.length > 80) return { text:full.trim(), model:model, partial:true };
+      if(full.length > 80) return { text:aiStripThink(full).trim(), model:model, partial:true };
       throw aiGroqErr(err);
     }
     clearTimeout(to);
     if(!full.trim()) throw aiGroqErr(null, { status:0, empty:true, msg:"empty" });
-    return { text:full.trim(), model:model };
+    return { text:aiStripThink(full).trim(), model:model };
   }
   /* ---------- The cascade: Gemini 3.8 Flash -> Groq -> (caller falls back to the offline engine) ---------- */
   async function aiCascade(q, onText){
@@ -9298,9 +9321,13 @@
     }
     throw { cascade:true, reasons:reasons };
   }
+  // reasoning models (Groq qwen3 / gpt-oss, DeepSeek-style) emit <think>...</think>: drop finished blocks and a still-open trailing one
+  function aiStripThink(t){
+    return String(t).replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<think>[\s\S]*$/i, "").replace(/<\/think>/gi, "");
+  }
   // filter visible prose from a raw reply while it is still streaming
   function aiLiveVisible(full){
-    let t = String(full);
+    let t = aiStripThink(full);
     const open = t.indexOf("<BOARD_CMD>");
     if(open >= 0) t = t.slice(0, open);
     t = t.replace(/<BOARD_CMD>[\s\S]*$/i, "").replace(/<BOARD_CMD[^>]*$/i, "");
@@ -10046,7 +10073,7 @@
             log.scrollTop = log.scrollHeight;
           });
           AI.busy = false;
-          const parsed = aiInterceptCommands(g.text);
+          const parsed = aiInterceptCommands(aiStripThink(g.text));
           let spec = aiCommandsToSpec(parsed.commands);
           const clean = aiTidy(parsed.clean) || (spec ? "Here it is on the neck." : "I could not form an answer to that. Please try rephrasing.");
           if(!spec && /\b(show|highlight|light up|display|play|hear|where)\b/i.test(q)){
