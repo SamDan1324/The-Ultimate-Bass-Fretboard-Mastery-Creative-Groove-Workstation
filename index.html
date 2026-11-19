@@ -1434,11 +1434,12 @@
     box-shadow:4px 0 14px rgba(0,0,0,0.45); letter-spacing:0.5px;
   }
   .ai-tab:hover{filter:brightness(1.1);}
-  .ai-dock{position:fixed; left:0; right:0; bottom:0; height:48px; box-sizing:content-box; padding:0 12px env(safe-area-inset-bottom,0px); z-index:640; display:none; align-items:center; justify-content:center; gap:10px; background:rgba(14,20,34,0.95); border-top:1px solid var(--accent-cyan); box-shadow:0 -6px 24px rgba(0,0,0,0.5);}
+  .ai-dock{position:fixed; left:0; right:0; bottom:0; min-height:48px; box-sizing:content-box; padding:4px 6px env(safe-area-inset-bottom,0px); z-index:640; display:none; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap; max-width:100vw; background:rgba(14,20,34,0.95); border-top:1px solid var(--accent-cyan); box-shadow:0 -6px 24px rgba(0,0,0,0.5);}
   body.ai-min .ai-dock{display:flex;}
   body.ai-min .ai-tab{display:none;}
   body.ai-min{padding-bottom:calc(54px + env(safe-area-inset-bottom,0px));}
   .ai-dock button, .ai-replay-pill, .mode-tags-btn{border:1px solid var(--line); background:rgba(36,47,71,0.92); color:var(--text-main); border-radius:999px; padding:9px 16px; font-size:12.5px; font-weight:800; cursor:pointer; white-space:nowrap;}
+  .ai-dock button{padding:6px 8px; font-size:11px; flex:0 0 auto;}
   .ai-dock #aiDockShow{background:linear-gradient(180deg,var(--accent-cyan),#1a8f8f); color:#04211f; border-color:transparent;}
   .ai-dock #aiDockReplay, .ai-replay-pill{background:linear-gradient(180deg,#ffd45e,#d9a21b); color:#2a1d00; border-color:transparent; box-shadow:0 0 14px rgba(255,212,94,0.45);}
   .ai-dock #aiDockReplay:disabled{opacity:.4; box-shadow:none; cursor:not-allowed;}
@@ -1687,10 +1688,10 @@
 </div>
 <button class="ai-tab" id="aiToggleBtn" aria-expanded="false" aria-controls="aiDrawer">&#127928; Professor BAI</button>
 <div class="ai-dock" id="aiDock" role="toolbar" aria-label="Professor BAI mini bar">
-  <button id="aiDockShow">&#9650; Show AI</button>
-  <button id="aiDockReplay" disabled title="Replay the last AI fretboard demonstration">&#9654; Replay Groove</button>
-  <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop: OFF</button>
-  <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; AI Bass: ON</button>
+  <button id="aiDockShow" aria-label="Show AI" title="Show Professor BAI">&#9650; AI</button>
+  <button id="aiDockReplay" disabled title="Replay the last AI fretboard demonstration">&#9654; Replay</button>
+  <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop</button>
+  <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; Bass</button>
   <button id="aiDockStop" title="Stop playback" aria-label="Stop">&#9632;</button>
 </div>
 <div class="ai-float-bar" id="aiFloatBar">
@@ -10644,12 +10645,12 @@
   // Loop / AI Bass toggle pills (dock, floating bar and AI header stay in sync)
   function aiSyncToggles(){
     document.querySelectorAll("[data-ai-loop]").forEach(function(b){
-      b.textContent = "\uD83D\uDD01 Loop: " + (AI.loop ? "ON" : "OFF");
+      b.textContent = b.closest("#aiDock") ? "\uD83D\uDD01 Loop" : "\uD83D\uDD01 Loop: " + (AI.loop ? "ON" : "OFF");
       b.classList.toggle("on", AI.loop);
       b.setAttribute("aria-pressed", AI.loop ? "true" : "false");
     });
     document.querySelectorAll("[data-ai-bass]").forEach(function(b){
-      b.textContent = "\uD83C\uDFB8 AI Bass: " + (AI.bassMute ? "MUTE" : "ON");
+      b.textContent = b.closest("#aiDock") ? "\uD83C\uDFB8 Bass" : "\uD83C\uDFB8 AI Bass: " + (AI.bassMute ? "MUTE" : "ON");
       b.classList.toggle("mute", AI.bassMute);
       b.setAttribute("aria-pressed", AI.bassMute ? "true" : "false");
     });
