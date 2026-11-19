@@ -1442,8 +1442,12 @@
   .ai-dock #aiDockShow{background:linear-gradient(180deg,var(--accent-cyan),#1a8f8f); color:#04211f; border-color:transparent;}
   .ai-dock #aiDockReplay, .ai-replay-pill{background:linear-gradient(180deg,#ffd45e,#d9a21b); color:#2a1d00; border-color:transparent; box-shadow:0 0 14px rgba(255,212,94,0.45);}
   .ai-dock #aiDockReplay:disabled{opacity:.4; box-shadow:none; cursor:not-allowed;}
-  .ai-replay-pill{position:fixed; right:14px; bottom:calc(16px + env(safe-area-inset-bottom,0px)); z-index:610; display:none;}
-  .ai-replay-pill.on{display:block;}
+  .ai-float-bar{position:fixed; right:14px; bottom:calc(16px + env(safe-area-inset-bottom,0px)); z-index:610; display:none; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; max-width:calc(100vw - 28px);}
+  .ai-float-bar.on{display:flex;}
+  .ai-float-bar button{border:1px solid var(--line); background:rgba(36,47,71,0.92); color:var(--text-main); border-radius:999px; padding:9px 14px; font-size:12.5px; font-weight:800; cursor:pointer; white-space:nowrap;}
+  .ai-tg{border:1px solid var(--line); background:rgba(36,47,71,0.92); color:var(--text-main); border-radius:999px; font-weight:800; cursor:pointer; white-space:nowrap;}
+  .ai-tg.on{background:linear-gradient(180deg,var(--accent-cyan),#1a8f8f) !important; color:#04211f !important; border-color:transparent !important; box-shadow:0 0 12px rgba(63,214,206,0.45);}
+  .ai-tg.mute{background:linear-gradient(180deg,#d9534f,#8f2622) !important; color:#fff !important; border-color:transparent !important;}
   .mode-tags-btn{position:fixed; top:calc(46px + env(safe-area-inset-top,0px)); right:10px; z-index:600; display:none; padding:6px 12px; font-size:11.5px; border-color:#ffe14d; color:#ffe14d; background:rgba(10,14,24,0.92);}
   body.modes-on .mode-tags-btn{display:block;}
   .mode-tags-btn.off{color:var(--text-dim); border-color:var(--line);}
@@ -1685,9 +1689,16 @@
 <div class="ai-dock" id="aiDock" role="toolbar" aria-label="Professor BAI mini bar">
   <button id="aiDockShow">&#9650; Show AI</button>
   <button id="aiDockReplay" disabled title="Replay the last AI fretboard demonstration">&#9654; Replay Groove</button>
+  <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop: OFF</button>
+  <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; AI Bass: ON</button>
   <button id="aiDockStop" title="Stop playback" aria-label="Stop">&#9632;</button>
 </div>
-<button class="ai-replay-pill" id="aiReplayPill" title="Replay the last AI fretboard demonstration">&#9654; Replay Groove</button>
+<div class="ai-float-bar" id="aiFloatBar">
+  <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop: OFF</button>
+  <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; AI Bass: ON</button>
+  <button class="ai-replay-pill" id="aiReplayPill" title="Replay the last AI fretboard demonstration">&#9654; Replay Groove</button>
+  <button id="aiFloatStop" title="Stop playback" aria-label="Stop">&#9632;</button>
+</div>
 <button class="mode-tags-btn" id="modeTagsBtn" title="Show or hide the COPY / PASTE banners">Tags: ON</button>
 <aside class="ai-drawer" id="aiDrawer" aria-label="Professor BAI assistant">
   <div class="ai-grip" id="aiGrip" title="Tap to resize the panel"></div>
@@ -1699,6 +1710,8 @@
     <div class="ai-head-actions">
       <button id="aiCfgBtn" title="API Configuration" aria-expanded="false" aria-controls="aiConfig">&#9881; API</button>
       <button id="aiVoiceBtn" title="Spoken replies (Web Speech API)">&#128266; Voice ON</button>
+      <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop: OFF</button>
+      <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; AI Bass: ON</button>
       <button id="aiStopBtn" title="Stop speech, playback and lessons">&#9632; Stop</button>
       <button id="aiSizeBtn" title="Make the panel taller or shorter">&#8661; Size</button>
       <button id="aiHideBtn" title="Collapse to a thin bar so the fretboard is clear">&#9660; Hide</button>
@@ -2477,7 +2490,7 @@
   function playTone(freq, opts){
     if(!state.audioEnabled || !state.audioInitialized) return;
     opts = opts || {};
-    if(opts.ghost){ playDeadNote(freq); return; }
+    if(opts.ghost){ playDeadNote(freq, opts.when); return; }
     playBassSample(freq, opts);
   }
   function playBassSample(freq, opts){
@@ -2490,7 +2503,7 @@
     if(!hit) return;
     const z = hit.zone;
     const ctx = ensureAudioCtx();
-    const now = ctx.currentTime;
+    const now = (opts.when && opts.when > ctx.currentTime) ? opts.when : ctx.currentTime;   // opts.when = absolute AudioContext time (shared band/bass clock)
     const baseDetune = z.originalPitch - 100*z.coarseTune - z.fineTune;
     const rate = Math.pow(2, (100*pitch - baseDetune)/1200);
 
@@ -2563,10 +2576,10 @@
   }
 
   // Muted dead note: the first few milliseconds of a real plucked sample, heavily damped, plus a fretting-hand tick
-  function playDeadNote(freq){
+  function playDeadNote(freq, when){
     if(!state.audioEnabled || !state.audioInitialized) return;
     const ctx = ensureAudioCtx();
-    const now = ctx.currentTime;
+    const now = (when && when > ctx.currentTime) ? when : ctx.currentTime;
     const def = BASS_SAMPLES.finger;
     const hit = def.preset ? bsZone(def.preset, bsPitch(freq)) : null;
     if(hit){
@@ -2961,17 +2974,23 @@
   }
 
   // band = { bpm, chords:[{sym, beat, dur}], drums:bool, totalMs }
-  function bandStart(band){
+  // total length of a band round in beats: whole bars, long enough for the bassline AND every chord
+  function bandTotalBeats(band){
+    const spb = 60 / band.bpm;
+    let beats = (band.totalMs || 0) / 1000 / spb;
+    (band.chords || []).forEach(function(c){ beats = Math.max(beats, c.beat + c.dur); });
+    return clampNum(Math.ceil(beats / 4 - 0.001), 1, 32) * 4;
+  }
+  // T0 = shared AudioContext start time (audioCtx.currentTime + 0.15) that the bass and the drums/piano all count from
+  function bandStart(band, T0){
     bandStop();
     if(!band || !state.audioEnabled || !state.audioInitialized) return;
     const hasChords = band.chords && band.chords.length;
     if(!hasChords && !band.drums) return;
     const ctx = ensureAudioCtx();
     const spb = 60 / band.bpm;
-    let beats = (band.totalMs || 0) / 1000 / spb;
-    (band.chords || []).forEach(function(c){ beats = Math.max(beats, c.beat + c.dur); });
-    const bars = clampNum(Math.ceil(beats / 4 - 0.001), 1, 32);
-    const totalBeats = bars * 4;
+    const totalBeats = bandTotalBeats(band);
+    const bars = totalBeats / 4;
 
     const bus = ctx.createGain(); bus.gain.value = 0.9;
     const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 6500;
@@ -3027,25 +3046,35 @@
     }
     ev.sort(function(a, b){ return a.t - b.t; });
 
-    const t0 = ctx.currentTime + 0.02;
+    if(!ev.length){ try{ bus.disconnect(); }catch(e){} return; }
+    const t0 = (typeof T0 === "number" && isFinite(T0)) ? T0 : ctx.currentTime + 0.15;
+    const loopSec = totalBeats * spb;
     const run = { ctx:ctx, bus:bus, timer:null, nodes:[bus, lp, dly, fb, wet] };
-    let idx = 0;
-    const endAt = t0 + totalBeats * spb + 2.5;
+    try{ bandEPNote(ctx, bus, 60, ctx.currentTime, 0.5, 0.0001); }catch(e){}     // pre-warm the piano voice graph (silent)
+    let idx = 0, round = 0;
+    function playEv(e, at){
+      const when = Math.max(ctx.currentTime, at);
+      try{
+        if(e.k === "kick") bandKick(ctx, bus, when, e.v);
+        else if(e.k === "snare") bandSnare(ctx, bus, noise, when, e.v);
+        else if(e.k === "hat") bandHat(ctx, bus, noise, when, e.v, e.open);
+        else if(e.k === "pad") e.notes.forEach(function(n){ bandPadNote(ctx, bus, n, when, e.dur, 1); });
+        else if(e.k === "ep") e.notes.forEach(function(n, i){ bandEPNote(ctx, bus, n, when + i * 0.014, e.dur, e.v * (0.9 + 0.1 * (i % 2))); });
+      }catch(err){}
+    }
     function pump(){
       if(Band.run !== run) return;
-      const horizon = ctx.currentTime + 0.25;
-      while(idx < ev.length && t0 + ev[idx].t < horizon){
-        const e = ev[idx++];
-        const when = Math.max(ctx.currentTime, t0 + e.t);
-        try{
-          if(e.k === "kick") bandKick(ctx, bus, when, e.v);
-          else if(e.k === "snare") bandSnare(ctx, bus, noise, when, e.v);
-          else if(e.k === "hat") bandHat(ctx, bus, noise, when, e.v, e.open);
-          else if(e.k === "pad") e.notes.forEach(function(n){ bandPadNote(ctx, bus, n, when, e.dur, 1); });
-          else if(e.k === "ep") e.notes.forEach(function(n, i){ bandEPNote(ctx, bus, n, when + i * 0.014, e.dur, e.v * (0.9 + 0.1 * (i % 2))); });
-        }catch(err){}
+      const horizon = ctx.currentTime + (document.hidden ? 1.5 : 0.25);
+      let guard = 0;
+      while(guard++ < 600){
+        if(idx >= ev.length){
+          if(AI.loop && round < 400){ round++; idx = 0; } else break;      // Loop ON: the next round is queued back-to-back on the same clock
+        }
+        const at = t0 + round * loopSec + ev[idx].t;
+        if(at >= horizon) break;
+        playEv(ev[idx++], at);
       }
-      if(idx >= ev.length && ctx.currentTime > endAt) bandStop();
+      if(idx >= ev.length && !AI.loop && ctx.currentTime > t0 + (round + 1) * loopSec + 2.5) bandStop();
     }
     Band.run = run;
     pump();
@@ -8513,7 +8542,7 @@
      12. BASS PROFESSOR AI: offline theory engine, bi-directional neck control, spoken replies
      ========================================================= */
   let aiOverlay = {};
-  const AI = { voiceOn:true, voice:null, timers:[], lastSpec:null, lastQuery:"", started:false, path:null, chips:false, chipActive:-1, rhBadge:null, tip:null, modes:null, tl:null, tlNow:null };
+  const AI = { loop:false, bassMute:false, launchId:0, voiceOn:true, voice:null, timers:[], lastSpec:null, lastQuery:"", started:false, path:null, chips:false, chipActive:-1, rhBadge:null, tip:null, modes:null, tl:null, tlNow:null };
   const AI_FLAT_PARENTS = [5,10,3,8,1,6];
   const AI_NOTE_BASE = { c:0, d:2, e:4, f:5, g:7, a:9, b:11 };
 
@@ -8784,6 +8813,7 @@
   function aiStopSeq(){
     AI.timers.forEach(function(t){ clearTimeout(t); });
     AI.timers = [];
+    AI.launchId++;
     bandStop();
     aiStopTimeline();
   }
@@ -8793,32 +8823,108 @@
       if(el){ el.classList.add("ai-playing"); setTimeout(function(){ el.classList.remove("ai-playing"); }, 340); }
     });
   }
-  function aiPlay(events){
+  /* ---- shared clock for the bass, the electric piano and the drums ---- */
+  function aiAudioReady(){ return !!(state.audioEnabled && state.audioInitialized && audioCtx); }
+  function aiClockNow(){ return aiAudioReady() ? audioCtx.currentTime : performance.now() / 1000; }
+  function aiTimer(fn, ms){
+    const id = setTimeout(function(){ const k = AI.timers.indexOf(id); if(k >= 0) AI.timers.splice(k, 1); fn(); }, Math.max(0, ms));
+    AI.timers.push(id);
+    return id;
+  }
+  // length (seconds) of one loop round: whole bars when a band is attached, otherwise exactly the sequence
+  function aiSpecLoopSec(spec){
+    const ev = spec.events, last = ev[ev.length - 1];
+    if(spec.band) return bandTotalBeats(spec.band) * 60 / spec.band.bpm;
+    const bpm = spec.bpm || 96;
+    const ms = spec.totalMs || (last.t + (last.dur ? last.dur * 1000 / 0.94 : 60000 / bpm));
+    return Math.max(0.8, ms / 1000);
+  }
+  // fire the first few distinct bass notes silently so the sampler graph is hot before step 0
+  function aiBassPrewarm(events){
+    if(!aiAudioReady()) return;
+    const strings = activeStrings(), seen = {};
+    let n = 0;
+    for(let i = 0; i < events.length && n < 14; i++){
+      const ev = events[i];
+      (ev.pos || []).forEach(function(p){
+        const art = (ev.art && BASS_SAMPLES.slap.preset) ? ev.art : "";
+        const k = p.s + "-" + p.f + "-" + art;
+        if(seen[k] || n >= 14 || !strings[p.s]) return;
+        seen[k] = 1; n++;
+        try{ playTone(freqAt(strings[p.s], p.f), { level:0.0001, dur:0.03, articulation:art || undefined, when:audioCtx.currentTime }); }catch(e){}
+      });
+    }
+  }
+  function aiBassReady(events){
+    if(!aiAudioReady()) return true;
+    if(audioCtx.state !== "running"){ try{ audioCtx.resume(); }catch(e){} return false; }
+    const needSlap = events.some(function(ev){ return ev.art === "slap" || ev.art === "pop"; });
+    const f = BASS_SAMPLES.finger.status, sl = BASS_SAMPLES.slap.status;
+    if(f === "idle") bsStart();
+    if(f !== "ready" && f !== "error") return false;
+    if(needSlap && sl !== "ready" && sl !== "error") return false;
+    return true;
+  }
+  // start bass + piano + drums from ONE timestamp (audioCtx.currentTime + 0.15), after the samples are decoded and warmed
+  function aiLaunch(spec){
+    const token = ++AI.launchId;
+    const t0wait = performance.now();
+    function go(){
+      if(token !== AI.launchId) return;
+      if(!aiBassReady(spec.events) && performance.now() - t0wait < 2500){ aiTimer(go, 50); return; }
+      aiBassPrewarm(spec.events);
+      const T0 = aiClockNow() + 0.15;
+      if(spec.band) bandStart(spec.band, T0);
+      aiPlay(spec.events, T0, aiSpecLoopSec(spec));
+    }
+    go();
+  }
+  function aiPlay(events, T0, loopSec){
     const strings = activeStrings();
-    events.forEach(function(ev){
-      AI.timers.push(setTimeout(function(){
-        if(ev.show){ aiSetOverlay(ev.show); renderFretboard(); }
-        if(ev.chipActive !== undefined){ AI.chipActive = ev.chipActive; renderTabRig(); }
-        if(ev.rh){ AI.rhBadge = ev.rh; renderTabRig(); }
-        if(ev.pos){
-          const lvl = (ev.pos.length > 1 ? 1/Math.sqrt(ev.pos.length) : 1) * (ev.level || 1);
-          ev.pos.forEach(function(p, i){
-            AI.timers.push(setTimeout(function(){
-              const o = { level:lvl };
-              if(ev.ghost) o.ghost = true;
-              if(ev.dur) o.dur = ev.dur;
-              if(ev.art) o.articulation = ev.art;
-              if(ev.glideFrom){ o.glideFrom = freqAt(strings[ev.glideFrom.s], ev.glideFrom.f); if(ev.glideTime) o.glideTime = ev.glideTime; }
-              playTone(freqAt(strings[p.s], p.f), o);
-              aiPulse([p]);
-              try{ RHX.hintArt = ev.art || ""; RHX.hintLink = ev.link || ""; LHX.nextLink = ev.link || ""; }catch(e){}
-              handFreeShow(p.s, p.f);
-              updateHandOverlay();
-            }, (ev.strum || 0) * i));
-          });
-        }
-      }, ev.t));
-    });
+    const LEAD = 0.09;                                   // audio is queued 90 ms ahead of its slot so it lands exactly on the shared clock
+    if(typeof T0 !== "number") T0 = aiClockNow() + 0.15;
+    function fire(ev, at){
+      const vd = Math.max(0, (at - aiClockNow()) * 1000);
+      if(ev.show || ev.chipActive !== undefined || ev.rh){
+        aiTimer(function(){
+          if(ev.show){ aiSetOverlay(ev.show); renderFretboard(); }
+          if(ev.chipActive !== undefined){ AI.chipActive = ev.chipActive; renderTabRig(); }
+          if(ev.rh){ AI.rhBadge = ev.rh; renderTabRig(); }
+        }, vd);
+      }
+      if(ev.pos){
+        const lvl = (ev.pos.length > 1 ? 1/Math.sqrt(ev.pos.length) : 1) * (ev.level || 1);
+        ev.pos.forEach(function(p, i){
+          const delayMs = (ev.strum || 0) * i;
+          const o = { level:lvl, when:at + delayMs / 1000 };
+          if(ev.ghost) o.ghost = true;
+          if(ev.dur) o.dur = ev.dur;
+          if(ev.art) o.articulation = ev.art;
+          if(ev.glideFrom){ o.glideFrom = freqAt(strings[ev.glideFrom.s], ev.glideFrom.f); if(ev.glideTime) o.glideTime = ev.glideTime; }
+          if(!AI.bassMute) playTone(freqAt(strings[p.s], p.f), o);          // AI Bass: MUTE keeps the piano + drums, silences only these notes
+          aiTimer(function(){
+            aiPulse([p]);
+            try{ RHX.hintArt = ev.art || ""; RHX.hintLink = ev.link || ""; LHX.nextLink = ev.link || ""; }catch(e){}
+            handFreeShow(p.s, p.f);
+            updateHandOverlay();
+          }, vd + delayMs);
+        });
+      }
+    }
+    const loopLen = loopSec > 0 ? loopSec : 0;
+    function round(r){
+      const off = T0 + r * loopLen;
+      events.forEach(function(ev){
+        const at = off + ev.t / 1000;
+        aiTimer(function(){ fire(ev, at); }, (at - LEAD - aiClockNow()) * 1000);
+      });
+      if(loopLen > 0 && r < 400){
+        // queue the next round shortly before this one ends; it only runs while Loop is ON
+        const trig = Math.max(off + loopLen - 0.8, off + loopLen * 0.5);
+        aiTimer(function(){ if(AI.loop) round(r + 1); }, (trig - aiClockNow()) * 1000);
+      }
+    }
+    round(0);
   }
   function aiArpEvents(pos, step, withChord){
     const sorted = aiSorted(pos), ev = [];
@@ -8895,9 +9001,8 @@
     renderFretboard();
     if(spec.events && spec.events.length){
       if(spec.band === undefined) spec.band = aiBandFromQuery(spec);     // offline / legacy specs: honour "with piano and drums" typed by the user
-      if(spec.band) bandStart(spec.band);
+      aiLaunch(spec);                                                    // bass + piano + drums share one start timestamp
     }
-    if(spec.events) aiPlay(spec.events);
     if(spec.overlay || spec.path || spec.vectors || spec.chips || spec.modes || spec.pivot) aiRevealNeck();
   }
 
@@ -10112,7 +10217,7 @@
       list.push({ s:ev.s, f:ev.f, role:"now" });
       aiSetOverlay(list);
       renderFretboard();
-      playTone(freqAt(strings[ev.s], ev.f), { ghost:ev.ghost, dur:ev.len*tickMs/1000*0.94, articulation:ev.tech || undefined });
+      if(!AI.bassMute) playTone(freqAt(strings[ev.s], ev.f), { ghost:ev.ghost, dur:ev.len*tickMs/1000*0.94, articulation:ev.tech || undefined });
       try{ rhxStrike({ s:ev.s, art:ev.tech || "", link:ev.link || "" }); }catch(e){}
       try{ LHX.nextLink = ev.link || ""; handFreeShow(ev.s, ev.f, true); updateHandOverlay(); }catch(e){}
       T.prev = { s:ev.s, f:ev.f };
@@ -10514,8 +10619,47 @@
     const drawerOpen = document.getElementById("aiDrawer").classList.contains("open");
     const rb = document.getElementById("aiDockReplay");
     if(rb) rb.disabled = !can;
-    const pill = document.getElementById("aiReplayPill");
-    if(pill) pill.classList.toggle("on", can && !drawerOpen && !AI.min);
+    const bar = document.getElementById("aiFloatBar");
+    if(bar) bar.classList.toggle("on", can && !drawerOpen && !AI.min);
+  }
+  // Loop / AI Bass toggle pills (dock, floating bar and AI header stay in sync)
+  function aiSyncToggles(){
+    document.querySelectorAll("[data-ai-loop]").forEach(function(b){
+      b.textContent = "\uD83D\uDD01 Loop: " + (AI.loop ? "ON" : "OFF");
+      b.classList.toggle("on", AI.loop);
+      b.setAttribute("aria-pressed", AI.loop ? "true" : "false");
+    });
+    document.querySelectorAll("[data-ai-bass]").forEach(function(b){
+      b.textContent = "\uD83C\uDFB8 AI Bass: " + (AI.bassMute ? "MUTE" : "ON");
+      b.classList.toggle("mute", AI.bassMute);
+      b.setAttribute("aria-pressed", AI.bassMute ? "true" : "false");
+    });
+  }
+  function aiSetLoop(on){
+    AI.loop = !!on;
+    try{ localStorage.setItem("aiLoop", AI.loop ? "1" : "0"); }catch(e){}
+    aiSyncToggles();
+  }
+  function aiSetBassMute(mute){
+    AI.bassMute = !!mute;
+    try{ localStorage.setItem("aiBassMute", AI.bassMute ? "1" : "0"); }catch(e){}
+    // solo sandbox: while muted, every tap on the neck plays a clean bass note (Freestyle) over the live band
+    if(AI.bassMute){
+      if(!FREESTYLE.on){ AI.muteFreestyle = true; setFreestyle(true); }
+    } else if(AI.muteFreestyle){
+      AI.muteFreestyle = false;
+      if(FREESTYLE.on) setFreestyle(false);
+    }
+    aiSyncToggles();
+  }
+  function wireAiToggles(){
+    try{ AI.loop = localStorage.getItem("aiLoop") === "1"; AI.bassMute = localStorage.getItem("aiBassMute") === "1"; }catch(e){}
+    document.querySelectorAll("[data-ai-loop]").forEach(function(b){ b.addEventListener("click", function(){ aiSetLoop(!AI.loop); }); });
+    document.querySelectorAll("[data-ai-bass]").forEach(function(b){ b.addEventListener("click", function(){ aiSetBassMute(!AI.bassMute); }); });
+    const fs = document.getElementById("aiFloatStop");
+    if(fs) fs.addEventListener("click", function(){ aiStopSeq(); aiStopSpeech(); });
+    if(AI.bassMute){ AI.muteFreestyle = !FREESTYLE.on; if(!FREESTYLE.on) setFreestyle(true); }
+    aiSyncToggles();
   }
   function aiMinimize(min){
     if(!min){ aiOpen(true); return; }
@@ -10554,6 +10698,7 @@
     document.getElementById("aiDockShow").addEventListener("click", function(){ aiMinimize(false); });
     document.getElementById("aiDockReplay").addEventListener("click", aiReplay);
     document.getElementById("aiReplayPill").addEventListener("click", aiReplay);
+    wireAiToggles();
     document.getElementById("aiDockStop").addEventListener("click", function(){ aiStopSeq(); aiStopSpeech(); });
     document.getElementById("aiPromptsBtn").addEventListener("click", function(){
       const ch = document.getElementById("aiChips"), off = !ch.classList.contains("off");
