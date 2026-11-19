@@ -1715,13 +1715,18 @@
       <input type="text" id="aiModelInput" list="aiModelList" placeholder="Model (default gemini-2.5-flash)" autocomplete="off" spellcheck="false" aria-label="Gemini model name">
       <datalist id="aiModelList"><option value="gemini-2.5-flash"></option><option value="gemini-2.5-flash-lite"></option><option value="gemini-3.5-flash"></option><option value="gemini-3.6-flash"></option></datalist>
     </div>
+    <label for="aiDsKeyInput">DeepSeek API Key (Optional &middot; Tier 3 backup)</label>
     <div class="ai-key-row">
-      <button type="button" id="aiKeySave" class="primary">Save key</button>
+      <input type="password" id="aiDsKeyInput" placeholder="Optional: paste your key from platform.deepseek.com" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="DeepSeek API key (optional)">
+      <button type="button" id="aiDsKeyShow">Show</button>
+    </div>
+    <div class="ai-key-row">
+      <button type="button" id="aiKeySave" class="primary">Save keys</button>
       <button type="button" id="aiKeyTest">Test</button>
-      <button type="button" id="aiKeyForget">Forget key</button>
+      <button type="button" id="aiKeyForget">Forget keys</button>
     </div>
     <div class="ai-cfg-status" id="aiCfgStatus" role="status"></div>
-    <div class="ai-cfg-note">Get a free key at aistudio.google.com/apikey. The key is saved only in this browser's localStorage and is sent only to Google (generativelanguage.googleapis.com) over HTTPS. Anyone who can use this browser profile could read it, so use a free-tier key you can revoke. With no key, when you are offline, or when the quota runs out, the built-in engine answers.</div>
+    <div class="ai-cfg-note">Get a free Gemini key at aistudio.google.com/apikey. Keys are saved only in this browser's localStorage. The Gemini key is sent only to Google (generativelanguage.googleapis.com) and the optional DeepSeek key only to DeepSeek (api.deepseek.com), both over HTTPS. Anyone who can use this browser profile could read them, so use keys you can revoke. Answers cascade: Gemini 2.5 Flash, then Gemini 2.5 Flash-Lite, then DeepSeek (only if you added a key), then the built-in engine when you are offline or every online layer fails.</div>
   </div>
   <div class="ai-log" id="aiLog" aria-live="polite"></div>
   <div class="ai-chips" id="aiChips"></div>
@@ -8992,7 +8997,13 @@
   const GEMINI_MODEL_STORE = "bassws_gemini_model_v1";
   const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/";
   const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash"];
-  AI.key = ""; AI.model = ""; AI.history = []; AI.busy = false;
+  const DEEPSEEK_KEY_STORE = "bassws_deepseek_key_v1";
+  const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions";
+  const DEEPSEEK_MODEL = "deepseek-chat";
+  const AI_TIMEOUT_MS = 25000;                     // every live AI request waits up to 25 s (slow mobile data)
+  const AI_TIER1_MODEL = "gemini-2.5-flash";
+  const AI_TIER2_MODEL = "gemini-2.5-flash-lite";
+  AI.key = ""; AI.dsKey = ""; AI.lastTier = ""; AI.model = ""; AI.history = []; AI.busy = false;
 
   function aiStoreGet(k){ try{ return localStorage.getItem(k) || ""; }catch(e){ return ""; } }
   function aiStoreSet(k, v){ try{ localStorage.setItem(k, v); return true; }catch(e){ return false; } }
@@ -9030,15 +9041,15 @@
     const sys = rawMode ? "Reply briefly." : aiSystemPrompt() + (att ? "\n\nATTACHMENT: the user attached a file (" + att.name + "). Read it carefully: it is probably bass tab, a chord chart, a scale diagram or sheet music. Explain what it shows in plain language, then demonstrate the main idea on the fretboard with a <BOARD_CMD> block." : "");
     return { system_instruction:{ parts:[{ text:sys }] }, contents:contents, generationConfig:{ temperature:0.6, maxOutputTokens:4096 } };
   }
-  async function aiGemini(q, rawMode){
+  async function aiGemini(q, rawMode, models){
     const key = AI.key;
     const preferred = AI.model || GEMINI_MODELS[0];
-    const chain = [preferred].concat(GEMINI_MODELS.filter(function(m){ return m !== preferred; }));
+    const chain = (models && models.length) ? models : [preferred].concat(GEMINI_MODELS.filter(function(m){ return m !== preferred; }));
     const body = aiGeminiBody(q, rawMode);
     let last = null;
     for(let m = 0; m < chain.length; m++){
       const ctrl = new AbortController();
-      const to = setTimeout(function(){ ctrl.abort(); }, 25000);
+      const to = setTimeout(function(){ ctrl.abort(); }, AI_TIMEOUT_MS);
       let resp;
       try{
         resp = await fetch(GEMINI_ENDPOINT + encodeURIComponent(chain[m]) + ":generateContent", {
@@ -9070,15 +9081,15 @@
     const parts = j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts ? j.candidates[0].content.parts : [];
     return parts.map(function(p){ return p.text || ""; }).join("");
   }
-  async function aiGeminiStream(q, onText){
+  async function aiGeminiStream(q, onText, models){
     const key = AI.key;
     const preferred = AI.model || GEMINI_MODELS[0];
-    const chain = [preferred].concat(GEMINI_MODELS.filter(function(m){ return m !== preferred; }));
+    const chain = (models && models.length) ? models : [preferred].concat(GEMINI_MODELS.filter(function(m){ return m !== preferred; }));
     const body = JSON.stringify(aiGeminiBody(q, false));
     let last = null;
     for(let m = 0; m < chain.length; m++){
       const ctrl = new AbortController();
-      let to = setTimeout(function(){ ctrl.abort(); }, 30000);
+      let to = setTimeout(function(){ ctrl.abort(); }, AI_TIMEOUT_MS);
       let resp;
       try{
         resp = await fetch(GEMINI_ENDPOINT + encodeURIComponent(chain[m]) + ":streamGenerateContent?alt=sse", {
@@ -9098,7 +9109,7 @@
       }
       if(!resp.body || !resp.body.getReader){
         clearTimeout(to);
-        const g = await aiGemini(q, false);
+        const g = await aiGemini(q, false, chain);
         onText(g.text);
         return g;
       }
@@ -9120,7 +9131,7 @@
           const r = await reader.read();
           if(r.done) break;
           clearTimeout(to);
-          to = setTimeout(function(){ ctrl.abort(); }, 30000);
+          to = setTimeout(function(){ ctrl.abort(); }, AI_TIMEOUT_MS);
           buf += dec.decode(r.value, { stream:true });
           let nl;
           while((nl = buf.indexOf("\n")) >= 0){
@@ -9140,6 +9151,117 @@
       return { text:full.trim(), model:chain[m] };
     }
     throw last || { status:0, msg:"no response" };
+  }
+  /* ---------- Tier 3: DeepSeek (optional, OpenAI-compatible streaming) ---------- */
+  function aiDsErr(err, extra){
+    const e = extra || {};
+    e.provider = "deepseek";
+    if(err){ e.abort = err.name === "AbortError"; e.net = (err instanceof TypeError); }
+    return e;
+  }
+  async function aiDeepSeekStream(q, onText, key, rawMode){
+    const msgs = [{ role:"system", content: rawMode ? "Reply briefly." : aiSystemPrompt() }];
+    if(!rawMode) AI.history.slice(-8).forEach(function(h){ msgs.push({ role: h.role === "model" ? "assistant" : "user", content:h.text }); });
+    msgs.push({ role:"user", content:q });
+    const ctrl = new AbortController();
+    let to = setTimeout(function(){ ctrl.abort(); }, AI_TIMEOUT_MS);
+    let resp;
+    try{
+      resp = await fetch(DEEPSEEK_ENDPOINT, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "Authorization":"Bearer " + key },
+        body:JSON.stringify({ model:DEEPSEEK_MODEL, messages:msgs, stream:true, temperature:0.6, max_tokens:4096 }),
+        signal:ctrl.signal
+      });
+    }catch(err){ clearTimeout(to); throw aiDsErr(err); }
+    if(!resp.ok){
+      clearTimeout(to);
+      let msg = resp.statusText;
+      try{ const j = await resp.json(); if(j && j.error && j.error.message) msg = j.error.message; }catch(e){}
+      throw aiDsErr(null, { status:resp.status, msg:msg });
+    }
+    let buf = "", full = "";
+    const handle = function(line){
+      if(line.indexOf("data:") !== 0) return;
+      const payload = line.slice(5).trim();
+      if(!payload || payload === "[DONE]") return;
+      let j = null;
+      try{ j = JSON.parse(payload); }catch(e){ return; }
+      const d = j && j.choices && j.choices[0] && j.choices[0].delta;
+      const t = d && d.content ? d.content : "";
+      if(t){ full += t; onText(full); }
+    };
+    try{
+      if(resp.body && resp.body.getReader){
+        const reader = resp.body.getReader();
+        const dec = new TextDecoder();
+        for(;;){
+          const r = await reader.read();
+          if(r.done) break;
+          clearTimeout(to);
+          to = setTimeout(function(){ ctrl.abort(); }, AI_TIMEOUT_MS);
+          buf += dec.decode(r.value, { stream:true });
+          let nl;
+          while((nl = buf.indexOf("\n")) >= 0){
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            handle(line);
+          }
+        }
+        if(buf.trim()) handle(buf.trim());
+      } else {
+        const txt = await resp.text();
+        txt.split("\n").forEach(function(l){ handle(l.trim()); });
+      }
+    }catch(err){
+      clearTimeout(to);
+      if(full.length > 80) return { text:full.trim(), model:DEEPSEEK_MODEL, partial:true };
+      throw aiDsErr(err);
+    }
+    clearTimeout(to);
+    if(!full.trim()) throw aiDsErr(null, { status:0, empty:true, msg:"empty" });
+    return { text:full.trim(), model:DEEPSEEK_MODEL };
+  }
+  /* ---------- The cascade: Gemini 2.5 Flash -> Gemini 2.5 Flash-Lite -> DeepSeek -> (caller falls back to the offline engine) ---------- */
+  async function aiCascade(q, onText){
+    const att = AI.sendAttach;
+    const reasons = [];
+    let skipLite = false;
+    if(AI.key){
+      const t1 = AI.model || AI_TIER1_MODEL;
+      try{
+        const g = await aiGeminiStream(q, onText, [t1]);
+        g.tier = (t1 === AI_TIER2_MODEL) ? "flashlite" : "gemini";
+        g.detail = "Answered by " + g.model;
+        return g;
+      }catch(err){
+        reasons.push(aiErrorReason(err, t1 === AI_TIER2_MODEL ? "Flash-Lite" : "Gemini"));
+        if(err && (err.status === 400 || err.status === 401 || err.status === 403)) skipLite = true;   // same key: Flash-Lite would be rejected too
+      }
+      if(!skipLite && t1 !== AI_TIER2_MODEL){
+        try{ onText(""); }catch(e){}
+        try{
+          const g = await aiGeminiStream(q, onText, [AI_TIER2_MODEL]);
+          g.tier = "flashlite";
+          g.detail = "Gemini Flash was unavailable, so Gemini 2.5 Flash-Lite answered";
+          return g;
+        }catch(err){
+          reasons.push(aiErrorReason(err, "Flash-Lite"));
+        }
+      }
+    }
+    if(AI.dsKey && !att){
+      try{ onText(""); }catch(e){}
+      try{
+        const g = await aiDeepSeekStream(q, onText, AI.dsKey, false);
+        g.tier = "deepseek";
+        g.detail = "The Gemini layers were unavailable, so DeepSeek answered";
+        return g;
+      }catch(err){
+        reasons.push(aiErrorReason(err));
+      }
+    }
+    throw { cascade:true, reasons:reasons };
   }
   // filter visible prose from a raw reply while it is still streaming
   function aiLiveVisible(full){
@@ -9654,12 +9776,13 @@
     const pill = document.getElementById("aiPill");
     if(!pill) return;
     const map = {
-      gemini:["Gemini", "ok"], thinking:["Thinking\u2026", "ok"], local:["Offline engine", "warn"], offline:["Offline", "warn"], error:["Fallback", "warn"]
+      gemini:["Gemini", "ok"], flashlite:["Flash-Lite", "ok"], deepseek:["DeepSeek", "ok"], thinking:["Thinking\u2026", "ok"], local:["Offline engine", "warn"], offline:["Offline", "warn"], error:["Fallback", "warn"]
     };
+    const titles = { gemini:"Answers come from Google Gemini 2.5 Flash (Tier 1)", flashlite:"Answers come from Google Gemini 2.5 Flash-Lite (Tier 2)", deepseek:"Answers come from DeepSeek (Tier 3)" };
     const m = map[kind] || map.local;
     pill.textContent = "\u25CF " + m[0];
     pill.className = "ai-pill " + m[1];
-    pill.title = detail || (kind === "gemini" ? "Answers come from Google Gemini" : "Answers come from the built-in music-theory engine");
+    pill.title = detail || titles[kind] || "Answers come from the built-in music-theory engine";
   }
   function aiCfgStatus(msg, bad){
     const el = document.getElementById("aiCfgStatus");
@@ -9668,24 +9791,32 @@
     el.className = "ai-cfg-status" + (bad ? " bad" : "");
   }
   function aiRefreshPill(){
-    if(AI.key && navigator.onLine !== false) aiUpdatePill("gemini");
-    else if(AI.key) aiUpdatePill("offline", "No internet connection: using the built-in engine");
+    const any = AI.key || AI.dsKey;
+    if(any && navigator.onLine !== false){
+      if(AI.lastTier === "flashlite" || AI.lastTier === "deepseek") aiUpdatePill(AI.lastTier);
+      else aiUpdatePill(AI.key ? "gemini" : "deepseek");
+    }
+    else if(any) aiUpdatePill("offline", "No internet connection: using the built-in engine");
     else aiUpdatePill("local", "Add a free Gemini key in the API panel for open-ended questions");
   }
-  function aiErrorReason(err){
-    if(err && err.name === "AbortError") return "Gemini took too long to answer.";
-    if(err && err.blocked) return "Gemini declined that request.";
-    if(err && err.status === 429) return "The Gemini free-tier quota is used up for now.";
-    if(err && (err.status === 400 || err.status === 401 || err.status === 403)) return "Gemini rejected the API key (" + (err.msg || err.status) + ").";
-    if(err && err.status === 404) return "No Gemini model was available.";
-    if(err instanceof TypeError) return "Could not reach Gemini.";
-    return "Gemini returned an error.";
+  function aiErrorReason(err, label){
+    const who = (err && err.provider === "deepseek") ? "DeepSeek" : (label || "Gemini");
+    if(err && (err.name === "AbortError" || err.abort)) return who + " took too long to answer.";
+    if(err && err.blocked) return who + " declined that request.";
+    if(err && err.status === 429) return "The " + who + " quota or rate limit is used up for now.";
+    if(err && err.status === 402) return who + " reports an insufficient balance.";
+    if(err && (err.status === 400 || err.status === 401 || err.status === 403)) return who + " rejected the API key (" + (err.msg || err.status) + ").";
+    if(err && err.status === 404) return "No " + who + " model was available.";
+    if(err instanceof TypeError || (err && err.net)) return "Could not reach " + who + ".";
+    return who + " returned an error.";
   }
   function wireGeminiConfig(){
     AI.key = aiStoreGet(GEMINI_KEY_STORE);
+    AI.dsKey = aiStoreGet(DEEPSEEK_KEY_STORE);
     AI.model = aiStoreGet(GEMINI_MODEL_STORE);
-    const keyIn = document.getElementById("aiKeyInput"), modelIn = document.getElementById("aiModelInput");
+    const keyIn = document.getElementById("aiKeyInput"), modelIn = document.getElementById("aiModelInput"), dsIn = document.getElementById("aiDsKeyInput");
     keyIn.value = AI.key;
+    dsIn.value = AI.dsKey;
     modelIn.value = AI.model;
     document.getElementById("aiCfgBtn").addEventListener("click", function(){
       const panel = document.getElementById("aiConfig");
@@ -9699,35 +9830,56 @@
       keyIn.type = hidden ? "text" : "password";
       this.textContent = hidden ? "Hide" : "Show";
     });
+    document.getElementById("aiDsKeyShow").addEventListener("click", function(){
+      const hidden = dsIn.type === "password";
+      dsIn.type = hidden ? "text" : "password";
+      this.textContent = hidden ? "Hide" : "Show";
+    });
     document.getElementById("aiKeySave").addEventListener("click", function(){
-      const k = keyIn.value.trim();
-      if(k.length < 20){ aiCfgStatus("That does not look like a Gemini API key (it should be about 39 characters).", true); return; }
-      const ok = aiStoreSet(GEMINI_KEY_STORE, k);
+      const k = keyIn.value.trim(), d = dsIn.value.trim();
+      if(!k && !d){ aiCfgStatus("Enter your Gemini key first (the DeepSeek key is optional).", true); return; }
+      if(k && k.length < 20){ aiCfgStatus("That does not look like a Gemini API key (it should be about 39 characters).", true); return; }
+      if(d && d.length < 20){ aiCfgStatus("That does not look like a DeepSeek API key (it starts with sk-).", true); return; }
+      let ok = true;
+      if(k){ ok = aiStoreSet(GEMINI_KEY_STORE, k) && ok; } else { aiStoreDel(GEMINI_KEY_STORE); }
       AI.key = k;
+      if(d){ ok = aiStoreSet(DEEPSEEK_KEY_STORE, d) && ok; } else { aiStoreDel(DEEPSEEK_KEY_STORE); }
+      AI.dsKey = d;
       const mdl = modelIn.value.trim();
       if(mdl){ aiStoreSet(GEMINI_MODEL_STORE, mdl); AI.model = mdl; } else { aiStoreDel(GEMINI_MODEL_STORE); AI.model = ""; }
-      aiCfgStatus(ok ? "Saved in this browser. Gemini answers are on; the built-in engine takes over offline." : "Could not write to localStorage: the key will last until you close this tab.", !ok);
+      AI.lastTier = "";
+      const chainTxt = (k ? "Gemini Flash \u2192 Flash-Lite" : "") + (k && d ? " \u2192 " : "") + (d ? "DeepSeek" : "") + " \u2192 built-in engine";
+      aiCfgStatus(ok ? "Saved in this browser. Answer order: " + chainTxt + "." : "Could not write to localStorage: the keys will last until you close this tab.", !ok);
       aiRefreshPill();
     });
     document.getElementById("aiKeyForget").addEventListener("click", function(){
-      aiStoreDel(GEMINI_KEY_STORE); aiStoreDel(GEMINI_MODEL_STORE);
-      AI.key = ""; AI.model = ""; keyIn.value = ""; modelIn.value = "";
-      aiCfgStatus("Key removed from this browser. Using the built-in engine.", false);
+      aiStoreDel(GEMINI_KEY_STORE); aiStoreDel(GEMINI_MODEL_STORE); aiStoreDel(DEEPSEEK_KEY_STORE);
+      AI.key = ""; AI.dsKey = ""; AI.model = ""; AI.lastTier = ""; keyIn.value = ""; dsIn.value = ""; modelIn.value = "";
+      aiCfgStatus("Keys removed from this browser. Using the built-in engine.", false);
       aiRefreshPill();
     });
     document.getElementById("aiKeyTest").addEventListener("click", async function(){
-      const k = keyIn.value.trim();
-      if(k.length < 20){ aiCfgStatus("Enter your key first.", true); return; }
-      const prevKey = AI.key, prevModel = AI.model;
-      AI.key = k; AI.model = modelIn.value.trim();
+      const k = keyIn.value.trim(), d = dsIn.value.trim();
+      if(k.length < 20 && d.length < 20){ aiCfgStatus("Enter a key first.", true); return; }
       aiCfgStatus("Testing\u2026", false);
-      try{
-        const g = await aiGemini("Reply with the single word OK.", true);
-        aiCfgStatus("Connected: " + g.model + " replied \u201C" + g.text.slice(0, 30) + "\u201D. Press Save key to keep it.", false);
-      }catch(err){
-        aiCfgStatus("Test failed: " + aiErrorReason(err), true);
+      const out = []; let bad = false;
+      if(k.length >= 20){
+        const prevKey = AI.key, prevModel = AI.model;
+        AI.key = k; AI.model = modelIn.value.trim();
+        try{
+          const g = await aiGemini("Reply with the single word OK.", true);
+          out.push("Gemini connected: " + g.model + " replied \u201C" + g.text.slice(0, 30) + "\u201D.");
+        }catch(err){ bad = true; out.push("Gemini test failed: " + aiErrorReason(err)); }
+        AI.key = prevKey; AI.model = prevModel;
       }
-      AI.key = prevKey; AI.model = prevModel;
+      if(d.length >= 20){
+        try{
+          let txt = "";
+          await aiDeepSeekStream("Reply with the single word OK.", function(t){ txt = t; }, d, true);
+          out.push("DeepSeek connected: replied \u201C" + txt.slice(0, 30) + "\u201D.");
+        }catch(err){ bad = true; out.push("DeepSeek test failed: " + aiErrorReason(err)); }
+      }
+      aiCfgStatus(out.join(" ") + (bad ? "" : " Press Save keys to keep them."), bad);
     });
     window.addEventListener("online", aiRefreshPill);
     window.addEventListener("offline", aiRefreshPill);
@@ -9834,7 +9986,7 @@
     AI.lastQuery = q;
     let reason = "";
     const thinkingHtml = '<span class="ai-thinking">Professor Bass is thinking<i>.</i><i>.</i><i>.</i></span>';
-    if(AI.key){
+    if(AI.key || AI.dsKey){
       if(navigator.onLine === false){
         reason = "You appear to be offline.";
       } else {
@@ -9842,7 +9994,7 @@
         AI.busy = true;
         aiUpdatePill("thinking");
         try{
-          const g = await aiGeminiStream(q, function(full){
+          const g = await aiCascade(q, function(full){
             const vis = aiTidy(aiLiveVisible(full));
             bubble.innerHTML = vis ? aiFormat(vis) : thinkingHtml;
             const log = document.getElementById("aiLog");
@@ -9857,13 +10009,14 @@
           }
           AI.history.push({ role:"user", text:q }, { role:"model", text:clean });
           if(AI.history.length > 16) AI.history = AI.history.slice(-16);
-          aiRefreshPill();
+          AI.lastTier = g.tier;
+          aiUpdatePill(g.tier, g.detail);
           aiDeliver({ text:clean, spec:spec, cmd:parsed.commands.length > 0, bubble:bubble });
           return;
         }catch(err){
           bubble.remove();
           AI.busy = false;
-          reason = aiErrorReason(err);
+          reason = (err && err.reasons && err.reasons.length) ? err.reasons.join(" ") : aiErrorReason(err);
           aiUpdatePill("error", reason);
         }
       }
@@ -9873,7 +10026,7 @@
     try{ res = aiOfflineAnswer(q); }
     catch(err){ res = { text:"Something went wrong while I was working that out. Please try rephrasing: for example 'show me a C major 7th chord'." }; }
     if(reason) res.note = reason + " Answered by the built-in music-theory engine.";
-    if(!AI.key) aiRefreshPill();
+    if(!AI.key && !AI.dsKey) aiRefreshPill();
     aiDeliver(res);
   }
   function aiIsSheet(){
