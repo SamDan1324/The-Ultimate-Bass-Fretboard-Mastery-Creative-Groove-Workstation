@@ -2772,6 +2772,286 @@
     });
   }
 
+
+  /* =========================================================
+     3b. BUILT-IN WEB AUDIO BACKING BAND (electric piano comping + pad + drum loop)
+     Driven by the optional "chords", "drums" and "bpm" fields of a <BOARD_CMD> sequence. Everything is synthesised with
+     oscillators and noise: no samples, no network. A look-ahead scheduler keeps it sample-accurate and in time with the bass.
+     ========================================================= */
+  const Band = { run:null };
+  const BAND_ROOTS = { c:0, d:2, e:4, f:5, g:7, a:9, b:11 };
+
+  // "Dm9", "G13", "Cmaj9", "Bb7#9", "A7b13", "F#m7b5", "Ebmaj7/G" -> { root, ints:[semitones above root in voicing order], triad }
+  function bandParseChord(sym){
+    const m = String(sym || "").trim().match(/^([A-Ga-g])([#\u266F]|b|\u266D)?(.*)$/);
+    if(!m) return null;
+    let root = BAND_ROOTS[m[1].toLowerCase()];
+    if(m[2]) root = (root + ((m[2] === "b" || m[2] === "\u266D") ? 11 : 1)) % 12;
+    let q = m[3].replace(/\u266F/g, "#").replace(/\u266D/g, "b").replace(/[\s()]/g, "").replace("6/9", "69");
+    const sl = q.indexOf("/"); if(sl >= 0) q = q.slice(0, sl);
+    const major = /^(maj|M|\u0394|\u2206)/.test(q);
+    const half = /^(\u00F8|m7b5|min7b5|-7b5)/.test(q);
+    const dim = !half && /^(dim|o|\u00B0)/.test(q);
+    const aug = /^(aug|\+)/.test(q);
+    const minor = !major && !dim && !aug && /^(min|m|-|\u00F8)/.test(q);
+    let rest = q.replace(/^(maj|min|dim|aug|M|m|-|\u0394|\u2206|o|\u00B0|\u00F8|\+)/, "");
+    const mMaj = minor && /maj/i.test(rest);
+    rest = rest.replace(/maj/ig, "");
+    const adds = [];
+    rest = rest.replace(/add(\d+)/g, function(a, n){ adds.push(+n); return ""; });
+    let susN = 0;
+    rest = rest.replace(/sus(2|4)?/, function(a, n){ susN = n ? +n : 4; return ""; });
+    const alts = [];
+    rest = rest.replace(/([b#])(5|9|11|13)/g, function(a, s, n){ alts.push(s + n); return ""; });
+    const alt = /alt/.test(rest); rest = rest.replace(/alt/, "");
+    const nm = rest.match(/69|13|11|9|7|6/);
+    const num = nm ? nm[0] : "";
+    const has = function(x){ return alts.indexOf(x) !== -1; };
+
+    let third = (minor || dim || half) ? 3 : 4;
+    if(susN === 4) third = 5; else if(susN === 2) third = 2;
+    let fifth = (dim || half) ? 6 : (aug ? 8 : 7);
+    if(has("b5")) fifth = 6; if(has("#5")) fifth = 8;
+    let sev = null;
+    if(num === "7" || num === "9" || num === "11" || num === "13") sev = (major || mMaj) ? 11 : 10;
+    if(dim && num === "7") sev = 9;
+    if(half) sev = 10;
+    if(mMaj && sev === null) sev = 11;
+    let six = (num === "6" || num === "69");
+    let ninth = null, eleventh = null, thirteenth = null;
+    if(num === "9" || num === "11" || num === "13" || num === "69" || adds.indexOf(9) !== -1 || adds.indexOf(2) !== -1) ninth = 14;
+    if(has("b9")) ninth = 13; if(has("#9")) ninth = 15;
+    if(num === "11" || adds.indexOf(11) !== -1 || adds.indexOf(4) !== -1) eleventh = 17;
+    if(has("#11")) eleventh = 18;
+    if(num === "13" || adds.indexOf(13) !== -1) thirteenth = 21;
+    if(has("b13")) thirteenth = 20;
+    if(alt){ if(sev === null) sev = 10; ninth = 13; fifth = 8; }
+
+    const hasExt = (ninth !== null || eleventh !== null || thirteenth !== null);
+    const ints = [];
+    const triad = (sev === null && !six && !hasExt);
+    if(triad){
+      ints.push(0, third, fifth);
+    } else {
+      ints.push(third);                                    // rootless: the bass already plays the root
+      if(!thirteenth && !eleventh) ints.push(fifth);
+      if(sev !== null) ints.push(sev);
+      if(six) ints.push(9);
+      if(ninth !== null) ints.push(ninth);
+      if(eleventh !== null) ints.push(eleventh);
+      if(thirteenth !== null) ints.push(thirteenth);
+    }
+    return { root:root, ints:ints, triad:triad };
+  }
+
+  // stack the chord tones upward from the lowest sensible octave, then centre the voicing around middle C
+  function bandVoicing(ch){
+    if(!ch) return [];
+    function build(startMidi){
+      const out = []; let prev = startMidi - 1;
+      ch.ints.forEach(function(iv, i){
+        const pc = (ch.root + iv) % 12;
+        let n = prev + 1;
+        while(((n % 12) + 12) % 12 !== pc) n++;
+        if(i === 0) n = startMidi + ((((pc - startMidi) % 12) + 12) % 12);
+        out.push(n); prev = n;
+      });
+      return out;
+    }
+    const a = build(ch.triad ? 53 : 52), b = a.map(function(n){ return n - 12; });
+    const mean = function(v){ return v.reduce(function(x, y){ return x + y; }, 0) / v.length; };
+    return Math.abs(mean(a) - 63) <= Math.abs(mean(b) - 63) ? a : b;
+  }
+
+  function bandStop(){
+    const r = Band.run;
+    if(!r) return;
+    Band.run = null;
+    clearInterval(r.timer);
+    try{
+      const t = r.ctx.currentTime;
+      r.bus.gain.cancelScheduledValues(t);
+      r.bus.gain.setTargetAtTime(0, t, 0.03);
+      setTimeout(function(){ r.nodes.forEach(function(n){ try{ n.disconnect(); }catch(e){} }); }, 600);
+    }catch(e){}
+  }
+
+  // Warm, clean electric piano: FM tine (decaying index) + chorus-detuned sine + a tiny bell partial, through a soft low-pass
+  function bandEPNote(ctx, dest, midi, when, dur, vel){
+    const f = 440 * Math.pow(2, (midi - 69) / 12);
+    dur = Math.max(0.5, dur);
+    const end = when + dur;
+    const peak = 0.11 * vel;
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, when);
+    out.gain.linearRampToValueAtTime(peak, when + 0.006);
+    out.gain.exponentialRampToValueAtTime(peak * 0.5, when + 0.32);
+    out.gain.exponentialRampToValueAtTime(Math.max(0.0003, peak * 0.1), end);
+    out.gain.exponentialRampToValueAtTime(0.0001, end + 0.3);
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = Math.min(4800, 1300 + f * 3.2); lp.Q.value = 0.4;
+    out.connect(lp); lp.connect(dest);
+
+    const car = ctx.createOscillator(); car.type = "sine"; car.frequency.value = f;
+    const mod = ctx.createOscillator(); mod.type = "sine"; mod.frequency.value = f;
+    const modG = ctx.createGain();
+    modG.gain.setValueAtTime(f * 2.1 * vel, when);
+    modG.gain.exponentialRampToValueAtTime(Math.max(1, f * 0.12), when + 0.55);
+    mod.connect(modG); modG.connect(car.frequency);
+    const car2 = ctx.createOscillator(); car2.type = "sine"; car2.frequency.value = f * 1.0035;
+    const g2 = ctx.createGain(); g2.gain.value = 0.45;
+    const bell = ctx.createOscillator(); bell.type = "sine"; bell.frequency.value = f * 7.02;
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.06 * vel, when);
+    bg.gain.exponentialRampToValueAtTime(0.0005, when + 0.09);
+    car.connect(out); car2.connect(g2); g2.connect(out); bell.connect(bg); bg.connect(out);
+    const stopAt = end + 0.4;
+    [car, mod, car2, bell].forEach(function(o){ o.start(when); o.stop(stopAt); });
+  }
+
+  // soft sustained pad layer under the comping (triangle through a dark low-pass)
+  function bandPadNote(ctx, dest, midi, when, dur, vel){
+    const f = 440 * Math.pow(2, (midi - 69) / 12);
+    const end = when + dur;
+    const g = ctx.createGain();
+    const pk = 0.028 * vel;
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.linearRampToValueAtTime(pk, when + 0.35);
+    g.gain.setValueAtTime(pk, Math.max(when + 0.36, end - 0.05));
+    g.gain.linearRampToValueAtTime(0.0001, end + 0.4);
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 900; lp.Q.value = 0.3;
+    const o1 = ctx.createOscillator(); o1.type = "triangle"; o1.frequency.value = f;
+    const o2 = ctx.createOscillator(); o2.type = "triangle"; o2.frequency.value = f * 1.004;
+    o1.connect(g); o2.connect(g); g.connect(lp); lp.connect(dest);
+    [o1, o2].forEach(function(o){ o.start(when); o.stop(end + 0.5); });
+  }
+
+  function bandKick(ctx, dest, when, vel){
+    const o = ctx.createOscillator(); o.type = "sine";
+    o.frequency.setValueAtTime(155, when);
+    o.frequency.exponentialRampToValueAtTime(42, when + 0.14);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.95 * vel, when);
+    g.gain.exponentialRampToValueAtTime(0.001, when + 0.3);
+    o.connect(g); g.connect(dest); o.start(when); o.stop(when + 0.32);
+    const c = ctx.createOscillator(); c.type = "triangle"; c.frequency.value = 900;   // beater click
+    const cg = ctx.createGain(); cg.gain.setValueAtTime(0.12 * vel, when); cg.gain.exponentialRampToValueAtTime(0.001, when + 0.012);
+    c.connect(cg); cg.connect(dest); c.start(when); c.stop(when + 0.02);
+  }
+  function bandSnare(ctx, dest, noise, when, vel){
+    const n = ctx.createBufferSource(); n.buffer = noise;
+    const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 1500;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.75 * vel, when);
+    ng.gain.exponentialRampToValueAtTime(0.001, when + 0.17);
+    n.connect(hp); hp.connect(ng); ng.connect(dest); n.start(when, Math.random() * 0.5); n.stop(when + 0.2);
+    const o = ctx.createOscillator(); o.type = "triangle";
+    o.frequency.setValueAtTime(200, when); o.frequency.exponentialRampToValueAtTime(150, when + 0.08);
+    const og = ctx.createGain(); og.gain.setValueAtTime(0.4 * vel, when); og.gain.exponentialRampToValueAtTime(0.001, when + 0.1);
+    o.connect(og); og.connect(dest); o.start(when); o.stop(when + 0.12);
+  }
+  function bandHat(ctx, dest, noise, when, vel, open){
+    const n = ctx.createBufferSource(); n.buffer = noise;
+    const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 7200;
+    const g = ctx.createGain();
+    const len = open ? 0.2 : 0.045;
+    g.gain.setValueAtTime(0.32 * vel, when);
+    g.gain.exponentialRampToValueAtTime(0.001, when + len);
+    n.connect(hp); hp.connect(g); g.connect(dest); n.start(when, Math.random() * 0.5); n.stop(when + len + 0.03);
+  }
+
+  // band = { bpm, chords:[{sym, beat, dur}], drums:bool, totalMs }
+  function bandStart(band){
+    bandStop();
+    if(!band || !state.audioEnabled || !state.audioInitialized) return;
+    const hasChords = band.chords && band.chords.length;
+    if(!hasChords && !band.drums) return;
+    const ctx = ensureAudioCtx();
+    const spb = 60 / band.bpm;
+    let beats = (band.totalMs || 0) / 1000 / spb;
+    (band.chords || []).forEach(function(c){ beats = Math.max(beats, c.beat + c.dur); });
+    const bars = clampNum(Math.ceil(beats / 4 - 0.001), 1, 32);
+    const totalBeats = bars * 4;
+
+    const bus = ctx.createGain(); bus.gain.value = 0.9;
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 6500;
+    const dly = ctx.createDelay(0.5); dly.delayTime.value = spb * 0.75;
+    const fb = ctx.createGain(); fb.gain.value = 0.22;
+    const wet = ctx.createGain(); wet.gain.value = 0.13;
+    bus.connect(lp); lp.connect(ctx.destination);
+    lp.connect(dly); dly.connect(fb); fb.connect(dly); dly.connect(wet); wet.connect(ctx.destination);
+    const noise = createNoiseBuffer(ctx, 0.6);
+
+    const ev = [];
+    // ---- electric piano comping + pad
+    (band.chords || []).forEach(function(c){
+      const voicing = bandVoicing(bandParseChord(c.sym));
+      if(!voicing.length) return;
+      const cBeats = Math.min(c.dur, totalBeats - c.beat);
+      if(cBeats <= 0) return;
+      if(cBeats >= 2) ev.push({ t:c.beat * spb, k:"pad", notes:voicing, dur:cBeats * spb });
+      for(let bar = 0; bar * 4 < cBeats; bar++){
+        const first = bar === 0;
+        const hits = first
+          ? [{ o:0, l:2.2, v:1 }, { o:2.5, l:1.3, v:0.62 }]
+          : [{ o:0, l:1.6, v:0.82 }, { o:1.5, l:0.8, v:0.58 }, { o:3, l:1.0, v:0.55 }];
+        hits.forEach(function(h){
+          const off = bar * 4 + h.o;
+          if(off >= cBeats) return;
+          ev.push({ t:(c.beat + off) * spb, k:"ep", notes:voicing, dur:Math.min(h.l, cBeats - off) * spb, v:h.v });
+        });
+      }
+    });
+    // ---- drums: kick / snare / hat pocket with a snare fill into the last beat of the final bar
+    if(band.drums){
+      const kick  = [1,0,0,0, 0,0,0,1, 0,0,1,0, 0,0,0,0];
+      const snare = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0];
+      const ghost = [0,0,0,1, 0,0,0,0, 0,1,0,0, 0,0,0,1];
+      const hatV  = [0.9,0.3,0.6,0.3, 0.8,0.3,0.6,0.3, 0.85,0.3,0.6,0.3, 0.8,0.3,0.6,0.35];
+      for(let bar = 0; bar < bars; bar++){
+        const fill = (bars >= 2 && bar === bars - 1);
+        for(let st = 0; st < 16; st++){
+          const t = (bar * 16 + st) * spb / 4;
+          const inFill = fill && st >= 12;
+          if(kick[st] && !inFill) ev.push({ t:t, k:"kick", v:1 });
+          if(snare[st] && !inFill) ev.push({ t:t, k:"snare", v:1 });
+          else if(ghost[st] && !inFill) ev.push({ t:t, k:"snare", v:0.2 });
+          if(inFill){
+            ev.push({ t:t, k:"snare", v:[0.55, 0.62, 0.78, 0.95][st - 12] });
+            if(st === 12) ev.push({ t:t, k:"kick", v:1 });
+          } else {
+            ev.push({ t:t, k:"hat", v:hatV[st] * (st % 4 === 0 ? 1 : 0.9), open:(st === 14 && !fill) });
+          }
+        }
+      }
+    }
+    ev.sort(function(a, b){ return a.t - b.t; });
+
+    const t0 = ctx.currentTime + 0.02;
+    const run = { ctx:ctx, bus:bus, timer:null, nodes:[bus, lp, dly, fb, wet] };
+    let idx = 0;
+    const endAt = t0 + totalBeats * spb + 2.5;
+    function pump(){
+      if(Band.run !== run) return;
+      const horizon = ctx.currentTime + 0.25;
+      while(idx < ev.length && t0 + ev[idx].t < horizon){
+        const e = ev[idx++];
+        const when = Math.max(ctx.currentTime, t0 + e.t);
+        try{
+          if(e.k === "kick") bandKick(ctx, bus, when, e.v);
+          else if(e.k === "snare") bandSnare(ctx, bus, noise, when, e.v);
+          else if(e.k === "hat") bandHat(ctx, bus, noise, when, e.v, e.open);
+          else if(e.k === "pad") e.notes.forEach(function(n){ bandPadNote(ctx, bus, n, when, e.dur, 1); });
+          else if(e.k === "ep") e.notes.forEach(function(n, i){ bandEPNote(ctx, bus, n, when + i * 0.014, e.dur, e.v * (0.9 + 0.1 * (i % 2))); });
+        }catch(err){}
+      }
+      if(idx >= ev.length && ctx.currentTime > endAt) bandStop();
+    }
+    Band.run = run;
+    pump();
+    run.timer = setInterval(pump, 40);
+  }
+
   /* =========================================================
      4. THEORY HELPERS
      ========================================================= */
@@ -8468,16 +8748,19 @@
     return m;
   }
   function aiSetKey(pc){
+    const name = NOTES[((pc % 12) + 12) % 12];
+    // lock the master key to MANUAL without rolling a random key (the old click-driven switch re-rolled it and left a stale root such as A# lit)
     if(state.keyMode === "auto"){
-      const man = document.querySelector('#keyModeToggle button[data-keymode="manual"]');
-      if(man) man.click();
+      state.keyMode = "manual";
+      document.querySelectorAll("#keyModeToggle button").forEach(function(b){ b.classList.toggle("active", b.dataset.keymode === "manual"); });
     }
-    const name = NOTES[pc];
     const sel = document.getElementById("keySelect");
-    if(sel && sel.value !== name) sel.value = name;      // the selector always mirrors the key the board command asked for
-    if(state.key === name) return;
-    state.key = name;
-    refreshMode(false);
+    if(sel){ sel.disabled = false; sel.value = name; }      // the root-key dropdown always mirrors the key the board command asked for
+    aiClearStaleRoots();                                     // every gold root / ghost / chip from the previous key goes first
+    state.key = name;                                        // master root key state
+    refreshMode(false);                                      // regenerate the active mode in the new key and fully re-render the fretboard
+    if(sel && sel.value !== name) sel.value = name;
+    renderFretboard();
   }
   // wipes every AI marker left over from the previous key (gold root dots, ghosts, path, chips, tips) before a new sequence is lit
   function aiClearStaleRoots(){
@@ -8501,6 +8784,7 @@
   function aiStopSeq(){
     AI.timers.forEach(function(t){ clearTimeout(t); });
     AI.timers = [];
+    bandStop();
     aiStopTimeline();
   }
   function aiPulse(list){
@@ -8584,6 +8868,7 @@
     AI.path = null; AI.chips = false; AI.chipActive = -1; AI.rhBadge = null; AI.tip = null; AI.modes = null; AI.tlNow = null;
     if(!spec) return;
     if(spec.timeline) aiPrepareCanvas();
+    else if(spec.events && spec.events.length && !spec.lesson && state.workstationMode === "learn") aiPrepareCanvas();   // leave Learn mode so no stale lesson markers keep an old root lit
     if(spec.notation) aiSetNotation(spec.notation);
     if(spec.key !== undefined && spec.key !== null){
       aiClearStaleRoots();          // old key's gold root dots go first ...
@@ -8608,6 +8893,10 @@
     if(spec.modes) AI.modes = spec.modes;
     if(spec.pivot) state.modeViz.pivot = true;
     renderFretboard();
+    if(spec.events && spec.events.length){
+      if(spec.band === undefined) spec.band = aiBandFromQuery(spec);     // offline / legacy specs: honour "with piano and drums" typed by the user
+      if(spec.band) bandStart(spec.band);
+    }
     if(spec.events) aiPlay(spec.events);
     if(spec.overlay || spec.path || spec.vectors || spec.chips || spec.modes || spec.pivot) aiRevealNeck();
   }
@@ -8642,6 +8931,7 @@
     "Where is G on the neck?",
     "Play a 12 bar blues in E",
     "Play a 16-step funk groove in A",
+    "Jam over Dm9 G13 Cmaj9 A7b13 with piano and drums",
     "Play a groove across the 7 mode boxes",
     "Explain Mo and Toh"
   ];
@@ -9042,12 +9332,24 @@
       acc.push({ string:3, fret:t[1], label:t[3], finger:4, duration:420 });
       return acc;
     }, []) }];
+    // pro-level 32-step ii-V-I-VI bassline (Dm9 | G13 | Cmaj9 | A7b13) with the matching comping chords and a drum loop
+    const bs = function(s, f, b, x){ const o = { string:s, fret:f, beats:b }; if(x){ Object.keys(x).forEach(function(k){ o[k] = x[k]; }); } return o; };
+    const exBand = [{ action:"sequence", key:"C", bpm:100, drums:true,
+      chords:[{ chord:"Dm9", beat:0, duration:4 }, { chord:"G13", beat:4, duration:4 }, { chord:"Cmaj9", beat:8, duration:4 }, { chord:"A7b13", beat:12, duration:4 }],
+      steps:[
+        bs(1,5,0.75), bs(2,2,0.25), bs(2,3,0.5,{ link:"h" }), bs(3,2,0.5), bs(3,5,0.5,{ tech:"pop" }), bs(3,7,0.5,{ tech:"pop" }), bs(2,3,0.5), bs(2,4,0.5),
+        bs(2,5,0.75,{ link:"h" }), bs(1,2,0.25), bs(1,5,0.5), bs(1,8,0.5), bs(1,7,0.5), bs(3,0,0.5,{ tech:"pop" }), bs(1,1,0.5), bs(1,2,0.5),
+        bs(1,3,0.75,{ link:"h" }), bs(2,2,0.25), bs(2,5,0.5), bs(2,9,0.5), bs(3,7,0.5), bs(3,5,0.5,{ link:"p" }), bs(2,9,0.5), bs(2,8,0.5),
+        bs(2,7,0.75,{ link:"p" }), bs(1,4,0.25), bs(1,7,0.5), bs(1,10,0.5), bs(1,8,0.5,{ link:"p" }), bs(3,2,0.5,{ tech:"pop" }), bs(2,5,0.5), bs(2,4,0.5)
+      ] }];
     return [
       "You are Professor Bass, a world-class bass guitar teacher embedded in an interactive 24-fret bass fretboard workstation. Answer every bass and music-theory question accurately, warmly and concisely. Your words are read aloud by a text-to-speech voice, so write plain spoken prose of at most about 150 words: no markdown headings, no tables, no emoji, no bullet symbols.",
       "CURRENT APP STATE: master key " + state.key + ", notation " + (state.notation === "solfa" ? "Tonic Solfa" : "Alphabet") + ", strings " + strings + ", 24 frets.",
       "HOUSE KNOWLEDGE: (1) Tonic Solfa dual labels: the minor 3rd is Ri / Mo and the flat 7th is Li / Toh; enharmonic boundaries Mi# = Fa, Fa-flat = Mi, Ti# = Do, Do-flat = Ti. (2) String geometry: neighbouring strings are a perfect 4th apart, so the same pitch is 5 frets away on the next string; the octave is one string up and 7 frets back, or two strings up and 2 frets over. (3) The 3-fret pivot: the relative minor root sits exactly 3 frets back on the same string from the major root. (4) Seven interlocking mode shapes: Box 1 Ionian, 2 Dorian, 3 Phrygian, 4 Lydian, 5 Mixolydian, 6 Aeolian, 7 Locrian. (5) Tab reading: bottom line = lowest, thickest string; h hammer-on, p pull-off, / slide up, backslash slide down, X ghost note, S slap, P pop.",
       "CRITICAL — BOARD COMMAND FORMAT: whenever the user asks to show, play, demonstrate, teach, or generate ANY groove, scale, mode, riff, fill, progression, chord, or exercise, you MUST append a valid JSON command wrapped in <BOARD_CMD>...</BOARD_CMD> tags at the very end of your reply. The board will animate and play it automatically. Example:\n<BOARD_CMD>" + JSON.stringify(exSequence) + "</BOARD_CMD>\nMore examples:\n<BOARD_CMD>" + JSON.stringify(exHighlight) + "</BOARD_CMD>",
       "SEQUENCE ACTION (the primary format): {\"action\":\"sequence\",\"key\":\"C\",\"bpm\":100,\"steps\":[{\"string\":2,\"fret\":3,\"label\":\"Do\",\"finger\":1,\"duration\":500}]}. String index: 0 = LOWEST string (E on 4-string, B on 5-string), 1 = A, 2 = D, 3 = G (4-string). On a 5-string bass: 0 = B, 1 = E, 2 = A, 3 = D, 4 = G. Fret is 0-24. Duration is milliseconds per step. Optional per-step \"tech\":\"slap\" or \"pop\" makes the on-screen right hand slap (thumb) or pop (index). Optional per-step \"link\":\"h\" (hammer-on), \"p\" (pull-off), \"/\" (slide up) or \"\\\\\" (slide down) on a step that stays on the same string animates the left-hand technique with no right-hand pluck. Optional \"action\":\"highlight_notes\" with \"chord_type\" or \"scale_type\" and \"notes\" array of semitone offsets for static chord/scale highlights. Other actions: {\"action\":\"load_lesson\",\"lesson_id\":\"<id>\"}, {\"action\":\"set_notation\",\"mode\":\"solfa\"}, {\"action\":\"set_key\",\"key\":\"D\"}, {\"action\":\"show_mode_boxes\"}, {\"action\":\"show_pivot\"}, {\"action\":\"clear_neck\"}.",
+      "BACKING BAND (built-in electric piano + drums): the sequence command also accepts optional fields: \"chords\" = an array of {\"chord\":\"Dm9\",\"beat\":0,\"duration\":4} objects (beat and duration are counted in BEATS from the start of the sequence, 4 beats per bar; chord symbols such as Dm9, G13, Cmaj9, A7b13, Bbm7, F#m7b5, Ebmaj7 are played as warm Rhodes-style comping with a soft pad), \"drums\": true (crisp kick, snare and hi-hat loop with a fill into the last bar) and \"bpm\". The board plays the piano and drums in time with your bassline automatically. Use them whenever the user asks you to jam, solo, play fills or play a groove OVER a chord progression, or asks for piano, keys, drums or a backing band. When you use them: (1) write a rich, professional 24 to 32 step bassline that follows the chords bar by bar (root on the downbeat, then chord tones, 9ths and 13ths, with octave pops using \"tech\":\"pop\", slides using \"link\":\"/\", hammer-ons \"link\":\"h\", pull-offs \"link\":\"p\", ghost notes, and a chromatic fill that approaches the next chord root from a half step); (2) give every step a \"beats\" length (0.25, 0.5, 0.75 or 1) instead of milliseconds so the notes lock to the chord grid, and make the beats of all steps add up to the total length of the chords array; (3) include the matching \"chords\" array and \"drums\":true, set \"key\" to the tonic of the progression and \"bpm\" between 85 and 120. Hammer-ons, pull-offs and slides must stay on the same string as the previous step. Example (ii-V-I-VI in C, 32 steps, 16 beats): <BOARD_CMD>" + JSON.stringify(exBand) + "</BOARD_CMD>",
+      "KEY SYNC: the \"key\" of every sequence command is the new master root key: the board switches the key selector to it and re-lights the neck so only that key's roots are gold. Always set \"key\" to the tonic you are playing in.",
       "Valid lesson ids: " + lessons.join("; ") + ".",
       "RULES: (a) the <BOARD_CMD>...</BOARD_CMD> tag must contain ONLY valid JSON — no prose, no markdown fences, no explanation. (b) The visible reply should be spoken-brief (≤150 words) and should describe what you are showing. (c) Never mention the tag or explain the JSON to the user — the board handles it silently. (d) Omit the tag only when the question is pure theory with nothing to show (e.g. 'what is a ii-V-I progression?' might still warrant a show; 'what is the circle of fifths?' needs only prose). (e) For scale and mode questions, aim for 8-16 step sequences. (e2) GROOVE LENGTH RULE: when asked to play or demonstrate a full groove, bassline, riff, fill (including multi-bar fills) or progression, or to play alongside a piano, chords or a chord progression, you MUST generate a complete 24 to 32 step musical sequence (never a short 4 or 5 note snippet and never fewer than 24 steps) that covers multiple neck positions (at least four different fret regions: low, middle and upper) AND multiple strings with realistic rhythm, keeping each hop within a comfortable hand span. Follow the chord changes bar by bar when playing along with piano or chords: root on the downbeat, then chord tones, passing notes and a fill into the next bar. Always write the whole JSON array and close the BOARD_CMD tag; never stop early. (e3) MODE BOX RULE: the sequence command may include an optional boolean \"showModeBoxes\":true. Set it to true whenever the user asks to see how a groove connects across mode shapes or mode boxes; the board then lights the seven colored Mode Box outlines while the groove plays so every note is seen moving inside and across the connected boxes. Example: [{\"action\":\"sequence\",\"key\":\"A\",\"bpm\":100,\"showModeBoxes\":true,\"steps\":[ ...24 to 32 steps... ]}]. (f) Keep timings sensible: eighth notes = 250ms at 120bpm, quarter notes = 500ms. (g) 10THS RULE: when the user asks for 10ths, tenths, 10th intervals or 10th chord voicings, build each shape as a two-note dyad: the ROOT on the E or A string and the 10th (an octave plus a 3rd: 16 semitones for a major 10th, 15 for a minor 10th) on the D or G string. Fret maths from a root at fret r: root on E string + 10th on G string = r+1 for a major 10th and r for a minor 10th (C major 10th: E string fret 8 + G string fret 9; D minor 10th: E string fret 10 + G string fret 10; F major 10th: E fret 1 + G fret 2; A minor 10th: E fret 5 + G fret 5). Root on E string + 10th on D string = r+6 major or r+5 minor. Root on A string + 10th on G string = r+6 major or r+5 minor. Root on A string + 10th on D string = r+11 major or r+10 minor (low roots only). On a 5-string bass shift every string index up by one (B = 0). Play each dyad as two consecutive steps (root, then the 10th, a comfortable stretch of one hand span with finger 1 on the root and finger 4 on the 10th) and WALK the shape through at least five different neck positions: step through the scale or chord progression the user names (diatonic 10ths of a major key are major on I, IV and V and minor on ii, iii, vi and vii), or move the shape up and down the neck in a progression, switching between the E-string root and the A-string root where it keeps the hand low. NEVER answer a 10ths request by repeating one 4-note arpeggio: the sequence must contain 16 to 24 steps made of different dyad positions, and your spoken reply should name the first two or three shapes with their string and fret numbers. Example (C major diatonic 10ths walked up the neck, 16 steps): <BOARD_CMD>" + JSON.stringify(exTenths) + "</BOARD_CMD>"
     ].join("\n\n");
@@ -9565,7 +9867,63 @@
         spec.modes = { show:[0,1,2,3,4,5,6], focus:-1, links:[] };   // colored 7-box outlines stay on while the groove plays
       }
     }catch(e){}
+    try{
+      if(spec && spec.events && spec.events.length && (c.chords || c.drums)){
+        const b = aiBandFromCmd(c, spec);
+        if(b) spec.band = b;
+      }
+    }catch(e){}
     return spec;
+  }
+  // ---- backing-band helpers: build spec.band from the command's "chords" / "drums" / "bpm" fields (or from the user's wording)
+  function aiBandFromCmd(c, spec){
+    const bpm = spec.bpm || clampNum(Math.round(Number(c.speed_bpm !== undefined ? c.speed_bpm : (c.bpm !== undefined ? c.bpm : c.tempo)) || 96), 50, 180);
+    const chords = [];
+    if(Array.isArray(c.chords)){
+      c.chords.slice(0, 32).forEach(function(x, i){
+        if(typeof x === "string") x = { chord:x, beat:i * 4, duration:4 };
+        if(!x || typeof x !== "object") return;
+        const sym = String(x.chord || x.name || x.symbol || "").trim();
+        if(!sym || !bandParseChord(sym)) return;
+        const beat = Number(x.beat !== undefined ? x.beat : (x.start !== undefined ? x.start : i * 4));
+        const dur = Number(x.duration !== undefined ? x.duration : (x.beats !== undefined ? x.beats : (x.len !== undefined ? x.len : 4)));
+        chords.push({ sym:sym, beat:isFinite(beat) && beat >= 0 ? beat : i * 4, dur:isFinite(dur) && dur > 0 ? clampNum(dur, 0.5, 32) : 4 });
+      });
+    }
+    const dr = c.drums;
+    const drums = dr === true || (typeof dr === "string" && !/^(false|no|off|none|0)$/i.test(dr.trim())) || (typeof dr === "number" && dr > 0) || (dr && typeof dr === "object");
+    if(!chords.length && !drums) return null;
+    return { bpm:bpm, chords:chords, drums:!!drums, totalMs:spec.totalMs || 0 };
+  }
+  function aiBandChordsFromText(q){
+    const found = [];
+    const rx = /(?:^|[\s,;|>\u2192\/(-])([A-G](?:#|b)?(?:maj|min|dim|aug|sus|add|m|M)?\d{0,2}(?:(?:b|#)\d{1,2}|alt|sus[24]?|add\d{1,2})*)(?=$|[\s,;|<\u2192\/).!?-])/g;
+    let m;
+    while((m = rx.exec(q)) !== null){
+      const tok = m[1];
+      if(tok.replace(/^[A-G][#b]?/, "").length && bandParseChord(tok)) found.push(tok);
+    }
+    return found;
+  }
+  function aiBandFromQuery(spec){
+    const q = String(AI.lastQuery || "");
+    if(!q) return null;
+    const wantsDrums = /\bdrums?\b|\bdrum (loop|beat|groove)\b|\bbacking band\b|\bfull band\b|\bwith (a )?(band|beat)\b/i.test(q);
+    const wantsKeys = /\b(piano|keys|keyboard|rhodes|electric piano|backing band|full band|comping)\b/i.test(q);
+    if(!wantsDrums && !wantsKeys) return null;
+    const last = spec.events[spec.events.length - 1];
+    const bpm = spec.bpm || 96;
+    const totalMs = spec.totalMs || (last.t + (last.dur ? last.dur * 1000 / 0.94 : 60000 / bpm));
+    let chords = [];
+    const syms = aiBandChordsFromText(q);
+    if(syms.length >= 2) chords = syms.slice(0, 16).map(function(s, i){ return { sym:s, beat:i * 4, dur:4 }; });
+    else if(wantsKeys){
+      const r = (spec.key !== undefined && spec.key !== null) ? spec.key : keyIndex();
+      const n = function(o){ return FLAT_NAMES[(r + o) % 12]; };
+      chords = [{ sym:n(2) + "m9", beat:0, dur:4 }, { sym:n(7) + "13", beat:4, dur:4 }, { sym:n(0) + "maj9", beat:8, dur:4 }, { sym:n(9) + "m7", beat:12, dur:4 }];
+    }
+    if(!chords.length && !wantsDrums) return null;
+    return { bpm:bpm, chords:wantsKeys || syms.length >= 2 ? chords : [], drums:wantsDrums, totalMs:totalMs };
   }
   function aiCmdToSpecCore(c){
     const act = aiNorm(c.action);
@@ -9588,7 +9946,10 @@
         events.push({ t: Math.round(t), pos:[{ s:it.s, f:it.f }], dur: durSec, ghost: it.ghost, art: it.tech || undefined, link: it.link || undefined });
         t += (it.durMs !== null ? it.durMs : it.beats * beatsMs);
       });
-      return { key: root, overlay: positions, events: play ? events : [] };
+      const strs = activeStrings();
+      positions.forEach(function(p){ if(pitchClassAt(strs[p.s], p.f) === root) p.role = "root"; });
+      // every root of the NEW key on the neck is gold-plated; played notes sit on top of them
+      return { key: root, overlay: aiPositionsForPcs(root, [0]).concat(positions), events: play ? events : [], bpm: bpm, totalMs: t };
     }
     if(act === "highlight_notes" || act === "highlight" || act === "show_scale" || act === "show_chord" || act === "play_notes" || act === "show_notes"){
       if(aiSequenceSource(c)){
@@ -9657,13 +10018,22 @@
     return null;
   }
   function aiCommandsToSpec(cmds){
-    let first = null;
+    let first = null, keyOnly = null;
     for(let i = 0; i < cmds.length; i++){
       let s = null;
       try{ s = aiCmdToSpec(cmds[i]); }catch(e){ s = null; }
       if(!s) continue;
       if(s.timeline) return s;
       if(!first) first = s;
+      if(keyOnly === null && s.key !== undefined && s.key !== null && !s.events && !s.overlay && !s.lesson) keyOnly = s.key;
+    }
+    // a lone set_key listed before a sequence must not swallow it: the sequence wins and its own "key" (or the set_key) drives the root
+    if(first && !(first.events && first.events.length)){
+      for(let i = 0; i < cmds.length; i++){
+        let s = null;
+        try{ s = aiCmdToSpec(cmds[i]); }catch(e){ s = null; }
+        if(s && s.events && s.events.length){ if(s.key === undefined || s.key === null){ if(keyOnly !== null) s.key = keyOnly; } return s; }
+      }
     }
     return first;
   }
