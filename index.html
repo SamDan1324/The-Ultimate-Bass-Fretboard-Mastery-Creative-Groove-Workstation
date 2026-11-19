@@ -9407,7 +9407,8 @@
   const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"];
   const GROQ_KEY_STORE = "bassws_groq_key_v1";
   const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-  const GROQ_FALLBACK_MODEL = "llama-3.1-8b-instant";
+  const GROQ_FALLBACK_MODEL = "llama-3.3-70b-versatile";
+  const GROQ_PREFERRED_MODELS = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile"];   // big, higher-limit models first; small rate-limited ones only as a last resort
   const GROQ_MODELS_ENDPOINT = "https://api.groq.com/openai/v1/models";
   const AI_TIMEOUT_MS = 25000;                     // Groq waits up to 25 s
   const AI_GEMINI_TIMEOUT_MS = 12000;              // Gemini gets 12 s, then the cascade rolls straight over to Groq
@@ -9587,7 +9588,7 @@
     if(err){ e.abort = err.name === "AbortError"; e.net = (err instanceof TypeError); e.msg = err.message || ""; }
     return e;
   }
-  // asks Groq which models are live for this key and takes the first chat model (no whisper / guard / speech / embedding); falls back to llama-3.1-8b-instant
+  // asks Groq which models are live for this key: openai/gpt-oss-120b first, then llama-3.3-70b-versatile, then any other non-tiny chat model; falls back to llama-3.3-70b-versatile
   async function aiGroqPickModel(key){
     if(AI.groqModelCache && AI.groqModelCache.key === key) return AI.groqModelCache.id;
     let id = GROQ_FALLBACK_MODEL;
@@ -9598,12 +9599,17 @@
       if(r.ok){
         const j = await r.json();
         const list = (j && j.data) || [];
+        const live = [];
         for(let i = 0; i < list.length; i++){
           const m = list[i], mid = m && m.id ? String(m.id) : "";
           if(!mid || m.active === false) continue;
           if(/whisper|guard|tts|orpheus|playai|embed/i.test(mid)) continue;
-          id = mid; break;
+          live.push(mid);
         }
+        let hit = null;
+        for(let k = 0; k < GROQ_PREFERRED_MODELS.length && !hit; k++){ if(live.indexOf(GROQ_PREFERRED_MODELS[k]) !== -1) hit = GROQ_PREFERRED_MODELS[k]; }
+        if(!hit) hit = live.find(function(x){ return !/(\b|[-_])(8b|1b|3b|instant|mini)(\b|[-_])/i.test(x); }) || live[0];   // else the first non-tiny chat model
+        if(hit) id = hit;
         AI.groqModelCache = { key:key, id:id };
       }
     }catch(e){}
@@ -9632,11 +9638,24 @@
       throw err;
     }
   }
+  // compact system prompt for Groq (under ~2,500 characters): only the BOARD_CMD schema, chords / drums and the 24-32 step groove rules
+  function aiGroqSystemPrompt(){
+    const strings = activeStrings().map(function(d){ return d.name; }).join(" ");
+    return [
+      "You are Professor Bass, a bass teacher inside a fretboard app. Reply in plain spoken prose, at most 80 words, no markdown. Master key: " + state.key + ". Strings: " + strings + ".",
+      "When asked to show, play, jam, solo, fill, groove, scale or chord, END the reply with <BOARD_CMD>[...]</BOARD_CMD> holding ONLY valid JSON.",
+      "Schema: {\"action\":\"sequence\",\"key\":\"C\",\"bpm\":100,\"drums\":true,\"chords\":[{\"chord\":\"Dm9\",\"beat\":0,\"duration\":4},{\"chord\":\"G13\",\"beat\":4,\"duration\":4}],\"steps\":[{\"string\":1,\"fret\":5,\"beats\":0.75},{\"string\":2,\"fret\":3,\"beats\":0.5,\"link\":\"h\"},{\"string\":3,\"fret\":7,\"beats\":0.5,\"tech\":\"pop\"}]}",
+      "String index 0 = lowest string (4-string E A D G = 0..3; 5-string B E A D G = 0..4). Fret 0-24. \"key\" = tonic of the tune (it sets the master root key). \"beats\" = step length (0.25, 0.5, 0.75 or 1), 4 beats per bar. Optional per step: \"link\" h (hammer-on), p (pull-off), / (slide up) on the SAME string as the previous step; \"tech\" slap or pop; \"ghost\":true; \"rest\":true.",
+      "Other actions: {\"action\":\"set_key\",\"key\":\"D\"}, {\"action\":\"highlight_notes\",\"key\":\"F\",\"chord_type\":\"min7\",\"notes\":[0,3,7,10]}, {\"action\":\"clear_neck\"}.",
+      "BAND: when asked to jam, solo or play fills/grooves over chords or with piano, keys or drums, add \"chords\" (symbols such as Dm9, G13, Cmaj9, A7b13, Bbm7; beat and duration counted in beats) and \"drums\":true.",
+      "GROOVE RULE: every groove, riff, fill, solo or progression has 24 to 32 steps (never fewer) over at least 4 fret regions and several strings. Follow the chords bar by bar: root on the downbeat, chord tones, slides, hammer-ons, octave pops, and a chromatic fill into the next bar. Step beats must add up to the total beats of the chords. Scales: 8-16 steps. Always close the tag; never explain the JSON."
+    ].join("\n");
+  }
   async function aiGroqStreamWith(q, onText, key, rawMode, model, noReasoning){
-    const msgs = [{ role:"system", content: rawMode ? "Reply briefly." : aiSystemPrompt() }];
-    if(!rawMode) AI.history.slice(-4).forEach(function(h){ msgs.push({ role: h.role === "model" ? "assistant" : "user", content:h.text }); });
-    msgs.push({ role:"user", content:q });
-    const payload = { model:model, messages:msgs, stream:true, temperature:0.6, max_tokens:2048 };   // system prompt + last 4 messages + 2048 completion tokens stays inside Groq's limit and still fits a 24-32 step groove
+    const msgs = [{ role:"system", content: rawMode ? "Reply briefly." : aiGroqSystemPrompt() }];
+    if(!rawMode) AI.history.slice(-2).forEach(function(h){ msgs.push({ role: h.role === "model" ? "assistant" : "user", content:String(h.text).slice(0, 700) }); });
+    msgs.push({ role:"user", content:String(q).slice(0, 1500) });
+    const payload = { model:model, messages:msgs, stream:true, temperature:0.6, max_tokens:1500 };   // compact prompt + last 2 turns + 1500 completion tokens: well under Groq's free-tier per-minute limit, still room for a 24-32 step groove
     if(!noReasoning){
       if(/qwen3/i.test(model)) payload.reasoning_effort = "none";        // no hidden thinking on reasoning models that support it
       else if(/gpt-oss/i.test(model)) payload.reasoning_effort = "low";   // gpt-oss cannot switch thinking off entirely
