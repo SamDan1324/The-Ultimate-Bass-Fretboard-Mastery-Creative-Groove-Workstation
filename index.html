@@ -1494,22 +1494,36 @@
     background:#0b1120 !important;
     z-index:1000 !important;
   }
-  /* The collapsed Professor BAI transport dock must sit above the pinned neck. */
+  /* Collapsed Professor BAI: hide the full drawer and pin the complete compact action bar. */
+  body.ai-min #aiDrawer{
+    display:none !important;
+    visibility:hidden !important;
+    opacity:0 !important;
+    transform:translateY(100%) !important;
+    pointer-events:none !important;
+  }
   body.ai-min #aiDock{
     position:fixed !important;
     bottom:0 !important;
     left:0 !important;
     right:0 !important;
     width:100vw !important;
+    height:auto !important;
+    min-height:48px !important;
     max-width:none !important;
     box-sizing:border-box !important;
-    z-index:2000 !important;
+    z-index:100000 !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    flex-wrap:wrap !important;
+    padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px)) !important;
   }
   body.ai-open .ai-drawer, body.ai-split .ai-drawer, body.ai-min .ai-drawer{z-index:1500 !important;}
   body.immersive-mode.ai-open .ai-drawer,
   body.immersive-mode.ai-split .ai-drawer,
   body.immersive-mode.ai-min .ai-drawer{display:flex !important; z-index:1500 !important;}
-  body.ai-min #aiDock{z-index:1500 !important;}
+  body.ai-min #aiDock{z-index:100000 !important;}
   .ai-head{display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding:16px 16px 10px; border-bottom:1px solid var(--line);}
   .ai-head h2{margin:0; font-size:17px; color:var(--accent-cyan);}
   .ai-head p{margin:3px 0 0; font-size:11.5px; color:var(--text-dim);}
@@ -1735,7 +1749,7 @@
 </div>
 <button class="ai-tab" id="aiToggleBtn" aria-expanded="false" aria-controls="aiDrawer">&#127928; Professor BAI</button>
 <div class="ai-dock" id="aiDock" role="toolbar" aria-label="Professor BAI mini bar">
-  <button id="aiDockShow" aria-label="Show AI" title="Show Professor BAI">&#9650; AI</button>
+  <button id="aiDockShow" aria-label="Show AI" title="Show Professor BAI">&#9650; Show AI</button>
   <button id="aiDockReplay" disabled title="Replay the last AI fretboard demonstration">&#9654; Replay</button>
   <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop</button>
   <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; Bass</button>
@@ -1839,8 +1853,8 @@
     <div class="strategy-bar-item">
       <div class="label">SELECT TRAINING STRATEGY</div>
       <select id="strategySelect" class="control-select">
-        <option value="hunter">Strategy B &mdash; Syllable Note Hunter</option>
         <option value="matrix">Strategy A &mdash; Full Scale Matrix Mapping</option>
+        <option value="hunter">Strategy B &mdash; Syllable Note Hunter</option>
         <option value="interval">Strategy C &mdash; Interval Vector Flashcard</option>
         <option value="laser">Strategy D: String Focus</option>
       </select>
@@ -8508,6 +8522,13 @@
     // visible drawer waiting to reappear after the fullscreen layer disappears.
     const baiDrawer = document.getElementById("aiDrawer");
     if(baiDrawer && baiDrawer.classList.contains("open")) aiOpen(false);
+    const baiDock = document.getElementById("aiDock");
+    if(baiDock){
+      if(baiDock.parentElement !== document.body) document.body.appendChild(baiDock);
+      baiDock.style.removeProperty("position");
+      baiDock.style.removeProperty("z-index");
+      baiDock.style.removeProperty("display");
+    }
     if(baiDrawer){
       baiDrawer.classList.remove("open","collapsed","hidden");
       baiDrawer.style.removeProperty("position");
@@ -10865,6 +10886,13 @@
   function aiOpen(open){
     const dr = document.getElementById("aiDrawer");
     AI.min = false; document.body.classList.remove("ai-min");
+    if(open){
+      dr.style.setProperty("display","flex","important");
+      dr.style.removeProperty("visibility");
+      dr.style.removeProperty("opacity");
+      dr.style.removeProperty("pointer-events");
+      dr.style.removeProperty("transform");
+    }
     dr.classList.toggle("open", open);
     document.getElementById("aiToggleBtn").setAttribute("aria-expanded", open ? "true" : "false");
     if(open){
@@ -10940,7 +10968,27 @@
     if(!min){ aiOpen(true); return; }
     AI.min = true;
     document.body.classList.add("ai-min");
-    document.getElementById("aiDrawer").classList.remove("open");
+    const dock = document.getElementById("aiDock");
+    const immersiveHost = document.getElementById("immersiveContainer");
+    // In native fullscreen, controls must live inside the fullscreen subtree
+    // or the browser will not paint them. Keep the complete transport dock visible.
+    if(document.body.classList.contains("immersive-mode") && immersiveHost){
+      if(dock && dock.parentElement !== immersiveHost) immersiveHost.appendChild(dock);
+      if(dock){
+        dock.style.setProperty("position","fixed","important");
+        dock.style.setProperty("z-index","99998","important");
+      }
+    } else if(dock && dock.parentElement !== document.body){
+      document.body.appendChild(dock);
+    }
+    const drawer = document.getElementById("aiDrawer");
+    drawer.classList.remove("open");
+    // The launch handler may have left display:flex !important inline.
+    // Override that inline state while minimized so only the compact dock remains.
+    drawer.style.setProperty("display","none","important");
+    drawer.style.setProperty("visibility","hidden","important");
+    drawer.style.setProperty("opacity","0","important");
+    drawer.style.setProperty("pointer-events","none","important");
     document.getElementById("aiToggleBtn").setAttribute("aria-expanded", "false");
     aiApplyLayout();
     aiSyncDock();
