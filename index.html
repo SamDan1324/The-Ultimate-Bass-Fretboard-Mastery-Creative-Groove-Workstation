@@ -118,6 +118,8 @@
     padding:16px 18px;
     margin-bottom:18px;
   }
+  #focusModeCard{display:none;}
+  #focusModeCard.strategy-d-active{display:block;}
   .strategy-bar-item .label{
     font-size:11px;
     color:var(--accent-violet);
@@ -1383,7 +1385,7 @@
     letter-spacing:-0.2px;
   }
 
-  /* ---------- Strategy D: Single String Laser Focus ---------- */
+  /* ---------- Strategy D: String Focus ---------- */
   .laser-lane{
     position:absolute; z-index:2; pointer-events:none; border-radius:8px;
     background:linear-gradient(180deg, rgba(53,208,208,0.10), rgba(53,208,208,0.24), rgba(53,208,208,0.10));
@@ -1457,7 +1459,7 @@
   body.modes-on .mode-tags-btn{display:block;}
   .mode-tags-btn.off{color:var(--text-dim); border-color:var(--line);}
   .ai-drawer{
-    position:fixed; top:0; left:0; z-index:602;
+    position:fixed !important; top:0; left:0; z-index:99999 !important;
     width:min(430px, 94vw); height:100vh; height:100dvh;
     display:flex; flex-direction:column;
     background:linear-gradient(180deg,var(--bg-panel-raised),var(--bg-panel));
@@ -1467,6 +1469,17 @@
     padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);
   }
   .ai-drawer.open{transform:translateX(0);}
+  .ai-drawer.hidden,.ai-drawer.collapsed{display:flex !important; visibility:visible !important;}
+  /* Professor BAI is hosted inside #immersiveContainer during native fullscreen. */
+  body.immersive-mode .ai-drawer.open{
+    display:flex !important; visibility:visible !important; opacity:1 !important;
+    transform:none !important; z-index:99999 !important;
+  }
+  body.immersive-mode.ai-open .ai-drawer,
+  body.immersive-mode.ai-split .ai-drawer,
+  body.immersive-mode.ai-min .ai-drawer{z-index:99999 !important;}
+  #aiDock{position:fixed !important; z-index:99999 !important;}
+  #aiFloatBar{z-index:99999 !important;}
   /* Opaque viewport-pinned fretboard while Professor BAI is open or minimized. */
   body.ai-open #immersiveContainer,
   body.ai-split #immersiveContainer,
@@ -1492,7 +1505,11 @@
     box-sizing:border-box !important;
     z-index:2000 !important;
   }
-  body.ai-open .ai-drawer, body.ai-split .ai-drawer, body.ai-min .ai-drawer{z-index:1002;}
+  body.ai-open .ai-drawer, body.ai-split .ai-drawer, body.ai-min .ai-drawer{z-index:1500 !important;}
+  body.immersive-mode.ai-open .ai-drawer,
+  body.immersive-mode.ai-split .ai-drawer,
+  body.immersive-mode.ai-min .ai-drawer{display:flex !important; z-index:1500 !important;}
+  body.ai-min #aiDock{z-index:1500 !important;}
   .ai-head{display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding:16px 16px 10px; border-bottom:1px solid var(--line);}
   .ai-head h2{margin:0; font-size:17px; color:var(--accent-cyan);}
   .ai-head p{margin:3px 0 0; font-size:11.5px; color:var(--text-dim);}
@@ -1825,8 +1842,51 @@
         <option value="hunter">Strategy B &mdash; Syllable Note Hunter</option>
         <option value="matrix">Strategy A &mdash; Full Scale Matrix Mapping</option>
         <option value="interval">Strategy C &mdash; Interval Vector Flashcard</option>
-        <option value="laser">Strategy D: Single String Laser Focus</option>
+        <option value="laser">Strategy D: String Focus</option>
       </select>
+    <div class="strategy-bar-item" id="focusModeCard">
+      <div class="label">STRATEGY D SETTINGS — STRING FOCUS</div>
+      <div class="label" style="margin-top:12px;">STRING FOCUS — SELECT ANY COMBINATION</div>
+      <div id="stringFocusChoices" class="string-focus-choices" aria-label="Select strings for String Focus">
+        <button type="button" data-sf-name="B" aria-pressed="false">B</button>
+        <button type="button" data-sf-name="E" aria-pressed="true">E</button>
+        <button type="button" data-sf-name="A" aria-pressed="true">A</button>
+        <button type="button" data-sf-name="D" aria-pressed="true">D</button>
+        <button type="button" data-sf-name="G" aria-pressed="true">G</button>
+      </div>
+      <div class="toggle-row compact" id="stringFocusMode">
+        <button type="button" data-sf-mode="fixed" class="active">Fixed Key (Scale/Solfa)</button>
+        <button type="button" data-sf-mode="natural">Natural Chromatic (All 12 Notes)</button>
+        <button type="button" data-sf-mode="naturals">Naturals Only (No #/b)</button>
+      </div>
+      <div class="switch-sub">Choose one or more strings. Natural Notes drills every semitone without locking the exercise to the master key.</div>
+      <select id="focusSelect" class="control-select">
+        <optgroup label="Core Tonal Sets">
+          <option value="naturals">Naturals Only (Ionian / Major Scale)</option>
+          <option value="combined">Combined / Accidentals (Full Chromatic)</option>
+        </optgroup>
+        <optgroup label="Pentatonic Explorer">
+          <option value="pentatonic_major">Major Pentatonic</option>
+          <option value="pentatonic_minor">Minor Pentatonic</option>
+        </optgroup>
+        <optgroup label="Diatonic Modes Explorer (7 Modes)">
+          <option value="naturals">Ionian (1st Mode)</option>
+          <option value="dorian">Dorian (2nd Mode)</option>
+          <option value="phrygian">Phrygian (3rd Mode)</option>
+          <option value="lydian">Lydian (4th Mode)</option>
+          <option value="mixolydian">Mixolydian (5th Mode)</option>
+          <option value="aeolian">Aeolian (6th Mode / Natural Minor)</option>
+          <option value="locrian">Locrian (7th Mode)</option>
+        </optgroup>
+        <optgroup label="Chords/Arpeggios Matrix">
+          <option value="maj7">Major 7 Arpeggio (1 3 5 7)</option>
+          <option value="min7">Minor 7 Arpeggio (1 b3 5 b7)</option>
+          <option value="dom7">Dominant 7 Arpeggio (1 3 5 b7)</option>
+          <option value="m7b5">Half-Diminished 7 (1 b3 b5 b7)</option>
+          <option value="blues">Blues Scale (6-Note)</option>
+        </optgroup>
+      </select>
+    </div>
     </div>
     <div class="strategy-bar-item">
       <div class="label">ORIENTATION ENGINE</div>
@@ -1887,48 +1947,7 @@
       <div class="switch-sub" style="margin-top:8px;">Seven colour-coded puzzle pieces. The E &amp; A strings of each box are pasted onto the D &amp; G strings of the next.</div>
     </div>
 
-    <div class="control-card" id="focusModeCard">
-      <div class="label">FOCUS TRAINING MODE</div>
-      <div class="label" style="margin-top:12px;">STRING FOCUS — SELECT ANY COMBINATION</div>
-      <div id="stringFocusChoices" class="string-focus-choices" aria-label="Select strings for String Focus">
-        <button type="button" data-sf-name="B" aria-pressed="false">B</button>
-        <button type="button" data-sf-name="E" aria-pressed="true">E</button>
-        <button type="button" data-sf-name="A" aria-pressed="true">A</button>
-        <button type="button" data-sf-name="D" aria-pressed="true">D</button>
-        <button type="button" data-sf-name="G" aria-pressed="true">G</button>
-      </div>
-      <div class="toggle-row compact" id="stringFocusMode">
-        <button type="button" data-sf-mode="fixed" class="active">Fixed Key (Scale/Solfa)</button>
-        <button type="button" data-sf-mode="natural">Natural Notes (All 12 Chromatic Notes)</button>
-      </div>
-      <div class="switch-sub">Choose one or more strings. Natural Notes drills every semitone without locking the exercise to the master key.</div>
-      <select id="focusSelect" class="control-select">
-        <optgroup label="Core Tonal Sets">
-          <option value="naturals">Naturals Only (Ionian / Major Scale)</option>
-          <option value="combined">Combined / Accidentals (Full Chromatic)</option>
-        </optgroup>
-        <optgroup label="Pentatonic Explorer">
-          <option value="pentatonic_major">Major Pentatonic</option>
-          <option value="pentatonic_minor">Minor Pentatonic</option>
-        </optgroup>
-        <optgroup label="Diatonic Modes Explorer (7 Modes)">
-          <option value="naturals">Ionian (1st Mode)</option>
-          <option value="dorian">Dorian (2nd Mode)</option>
-          <option value="phrygian">Phrygian (3rd Mode)</option>
-          <option value="lydian">Lydian (4th Mode)</option>
-          <option value="mixolydian">Mixolydian (5th Mode)</option>
-          <option value="aeolian">Aeolian (6th Mode / Natural Minor)</option>
-          <option value="locrian">Locrian (7th Mode)</option>
-        </optgroup>
-        <optgroup label="Chords/Arpeggios Matrix">
-          <option value="maj7">Major 7 Arpeggio (1 3 5 7)</option>
-          <option value="min7">Minor 7 Arpeggio (1 b3 5 b7)</option>
-          <option value="dom7">Dominant 7 Arpeggio (1 3 5 b7)</option>
-          <option value="m7b5">Half-Diminished 7 (1 b3 b5 b7)</option>
-          <option value="blues">Blues Scale (6-Note)</option>
-        </optgroup>
-      </select>
-    </div>
+
 
     <div class="control-card">
       <div class="switch-row">
@@ -3378,16 +3397,20 @@
     state.gradeResult = null;
   }
 
-  // --- Strategy D: Single String Laser Focus ---
+  // --- Strategy D: String Focus ---
   function generateLaserChallenge(){
     const strings = activeStrings();
     const chosen = (state.stringFocusNames || []).filter(function(name){ return strings.some(function(d){ return d.name === name; }); });
     const selected = chosen.length ? chosen : strings.map(function(d){ return d.name; });
     const stringIndices = selected.map(function(name){ return strings.findIndex(function(d){ return d.name === name; }); }).filter(function(i){ return i >= 0; });
-    const degrees = state.stringFocusMode === "natural" ? Array.from({length:12}, function(_,i){ return i; }) : activeDegreeSet();
+    const naturalPitchClasses = [0,2,4,5,7,9,11];
+    const degrees = state.stringFocusMode === "natural"
+      ? Array.from({length:12}, function(_,i){ return i; })
+      : (state.stringFocusMode === "naturals" ? naturalPitchClasses : activeDegreeSet());
     const degree = degrees[Math.floor(Math.random()*degrees.length)];
-    const pitchClass = state.stringFocusMode === "natural" ? degree : (keyIndex() + degree) % 12;
-    const label = state.stringFocusMode === "natural"
+    const pitchClass = (state.stringFocusMode === "natural" || state.stringFocusMode === "naturals")
+      ? degree : (keyIndex() + degree) % 12;
+    const label = (state.stringFocusMode === "natural" || state.stringFocusMode === "naturals")
       ? NOTES[pitchClass]
       : (state.notation === "alphabet" ? NOTES[pitchClass] : SOLFA[degree]);
     const correctSet = new Set();
@@ -3400,7 +3423,7 @@
       type:"laser", degree:degree, pitchClass:pitchClass, label:label,
       stringIndex:stringIndices[0], stringIndices:stringIndices,
       stringName:selected.join(" + "), correctSet:correctSet,
-      chromatic:state.stringFocusMode === "natural"
+      chromatic:state.stringFocusMode === "natural" || state.stringFocusMode === "naturals"
     };
     state.markers = {};
     state.graded = false;
@@ -3421,7 +3444,7 @@
     if(s === "hunter") return "Syllable Hunter";
     if(s === "matrix") return "Scale Matrix";
     if(s === "interval") return "Interval Flashcard";
-    if(s === "laser") return "Single String Laser Focus";
+    if(s === "laser") return "String Focus";
     return s;
   }
 
@@ -3435,11 +3458,18 @@
     const el = document.getElementById("challengeText");
     const focusTag = ` &nbsp;|&nbsp; <span class="tag">Focus:</span> ${focusModeName(state.focusMode)}`;
     if(c.type === "laser"){
-      el.innerHTML =
-        `<span class="tag">Target String:</span> ${c.stringName}` +
-        ` &nbsp;|&nbsp; <span class="tag">Key:</span> ${state.key}` +
-        ` &nbsp;|&nbsp; <span class="tag">Objective:</span> Locate and label every instance of ` +
-        `<span class="target">'${c.label}'</span> EXCLUSIVELY on this single string.`;
+      const selectedStringNames = (state.stringFocusNames || []).filter(function(name){
+        return activeStrings().some(function(d){ return d.name === name; });
+      });
+      const targetStrings = selectedStringNames.length ? selectedStringNames.join(" + ") : c.stringName;
+      if(state.stringFocusMode === "naturals"){
+        el.textContent = "Target String(s): [" + targetStrings + "] | Objective: Locate and label all 7 natural notes (A, B, C, D, E, F, G — no #/b) across the selected string(s).";
+      } else if(state.stringFocusMode === "natural"){
+        el.textContent = "Target String(s): [" + targetStrings + "] | Objective: Locate and label all 12 chromatic notes (including #/b) across the selected string(s).";
+      } else {
+        const oneString = selectedStringNames.length === 1;
+        el.textContent = "Target String(s): [" + targetStrings + "] | Key: [" + state.key + "] | Objective: Locate and label every instance of '" + c.label + "' " + (oneString ? "on this single string." : "across the selected string(s).");
+      }
     } else if(c.type === "hunter"){
       el.innerHTML =
         `<span class="tag">Strategy:</span> Syllable Note Hunter` +
@@ -5049,8 +5079,9 @@
   document.addEventListener("click", closeDropdown);
 
   function allowedLabelOptions(){
-    if(state.strategy === "laser" && state.stringFocusMode === "natural"){
-      return NOTES.map(function(note, pitchClass){ return { pitchClass:pitchClass, label:note }; });
+    if(state.strategy === "laser" && (state.stringFocusMode === "natural" || state.stringFocusMode === "naturals")){
+      const allowed = state.stringFocusMode === "naturals" ? [0,2,4,5,7,9,11] : Array.from({length:12}, function(_,i){ return i; });
+      return allowed.map(function(pitchClass){ return { pitchClass:pitchClass, label:NOTES[pitchClass] }; });
     }
     const degrees = activeDegreeSet();
     const out = [];
@@ -5164,25 +5195,23 @@
   function gradeLaser(c){
     const correct = new Set(), wrong = new Set(), missed = new Set();
     const strings = activeStrings();
-    if(state.stringFocusMode === "natural"){
+    if(state.stringFocusMode === "natural" || state.stringFocusMode === "naturals"){
       const selectedIndices = Array.isArray(c.stringIndices) ? c.stringIndices : [c.stringIndex];
       const required = new Set();
+      const naturalPitchClasses = [0,2,4,5,7,9,11];
       selectedIndices.forEach(function(sIdx){
         const sDef = strings[sIdx];
         if(!sDef) return;
         for(let fret=0; fret<=FRET_COUNT; fret++){
+          const pitchClass = pitchClassAt(sDef, fret);
+          if(state.stringFocusMode === "naturals" && naturalPitchClasses.indexOf(pitchClass) < 0) continue;
           const key = sIdx+"-"+fret;
-          const expectedNote = NOTES[pitchClassAt(sDef, fret)];
           required.add(key);
           const marker = state.markers[key];
-          if(marker && marker.label === expectedNote && marker.pitchClass === pitchClassAt(sDef, fret)){
-            correct.add(key);
-          }
+          if(marker && marker.label === NOTES[pitchClass] && marker.pitchClass === pitchClass) correct.add(key);
         }
       });
-      Object.keys(state.markers).forEach(function(key){
-        if(!required.has(key)) wrong.add(key);
-      });
+      Object.keys(state.markers).forEach(function(key){ if(!required.has(key)) wrong.add(key); });
       required.forEach(function(key){ if(!correct.has(key)) missed.add(key); });
       finalizeGrade(correct, wrong, missed, required.size, [], false);
       return;
@@ -8268,8 +8297,14 @@
       state.audioEnabled = e.target.checked;
     });
 
+    const strategyDSettings = document.getElementById("focusModeCard");
+    const syncStrategyDSettingsVisibility = ()=>{
+      strategyDSettings.classList.toggle("strategy-d-active", document.getElementById("strategySelect").value === "laser");
+    };
+    syncStrategyDSettingsVisibility();
     document.getElementById("strategySelect").addEventListener("change", (e)=>{
       state.strategy = e.target.value;
+      syncStrategyDSettingsVisibility();
       generateChallenge();
     });
 
@@ -8469,6 +8504,24 @@
   function exitImmersive(){
     closeHud();
     hudDetach();
+    // Leaving Upright Fullscreen must also close Professor BAI, never leave a
+    // visible drawer waiting to reappear after the fullscreen layer disappears.
+    const baiDrawer = document.getElementById("aiDrawer");
+    if(baiDrawer && baiDrawer.classList.contains("open")) aiOpen(false);
+    if(baiDrawer){
+      baiDrawer.classList.remove("open","collapsed","hidden");
+      baiDrawer.style.removeProperty("position");
+      baiDrawer.style.removeProperty("z-index");
+      baiDrawer.style.removeProperty("display");
+      baiDrawer.style.removeProperty("visibility");
+      baiDrawer.style.removeProperty("opacity");
+      baiDrawer.style.removeProperty("transform");
+      if(baiDrawer.parentElement !== document.body) document.body.appendChild(baiDrawer);
+    }
+    document.body.classList.remove("ai-open","ai-split","ai-min","ai-compact");
+    AI.min = false;
+    const baiToggle = document.getElementById("aiToggleBtn");
+    if(baiToggle) baiToggle.setAttribute("aria-expanded","false");
     document.body.classList.remove("immersive-mode");
     setImmersiveLabel(false);
     if(document.fullscreenElement){
@@ -8619,7 +8672,7 @@
     g.setAttribute("aria-expanded", "false");
   }
 
-  const STRATEGY_NAMES = { hunter:"Syllable Note Hunter", matrix:"Full Scale Matrix Mapping", interval:"Interval Vector Flashcard", laser:"Single String Laser Focus" };
+  const STRATEGY_NAMES = { hunter:"Syllable Note Hunter", matrix:"Full Scale Matrix Mapping", interval:"Interval Vector Flashcard", laser:"String Focus" };
   const GENRE_NAMES = { funk:"Funk Groove", jazz:"Walking Jazz", boombap:"Boom-Bap Hip Hop", highlife:"Nigerian Highlife", gospel:"Gospel Shout", afropop:"Afrobeats Pocket" };
   function updateHudBanner(){
     const el = document.getElementById("hudBanner");
@@ -8629,12 +8682,16 @@
       t = state.learn.meta.title;
     } else if(state.workstationMode === "sandbox"){
       t = "Groove Sandbox \u2014 " + (GENRE_NAMES[state.groove.genre] || "Groove") + " at " + state.groove.bpm + " BPM";
-    } else if(state.strategy === "laser" && state.stringFocusMode === "natural"){
-      t = "String Focus — Natural Chromatic Notes";
+    } else if(state.strategy === "laser"){
+      const activeNames = (state.stringFocusNames || []).filter(function(name){
+        return activeStrings().some(function(d){ return d.name === name; });
+      });
+      const modeLabel = state.stringFocusMode === "natural" ? "Natural Chromatic"
+        : (state.stringFocusMode === "naturals" ? "Naturals Only" : "Fixed Key");
+      t = "String Focus — " + modeLabel + (activeNames.length ? " — Strings: " + activeNames.join(", ") : "");
     } else {
       const fm = FOCUS_MODE_META[state.focusMode];
-      t = (STRATEGY_NAMES[state.strategy] || "Training") + " \u2014 " + (fm ? fm.name : "") + " in " + state.key +
-          ((state.strategy === "laser" && state.challenge && state.challenge.stringName) ? " \u2014 " + state.challenge.stringName + " string" : "");
+      t = (STRATEGY_NAMES[state.strategy] || "Training") + " — " + (fm ? fm.name : "") + " in " + state.key;
     }
     el.textContent = "Active: " + t;
   }
@@ -10825,6 +10882,9 @@
       if(!aiIsSheet()) setTimeout(function(){ document.getElementById("aiInput").focus(); }, 320);
     } else {
       aiStopSpeech();
+      dr.classList.remove("collapsed");
+      dr.style.display = "";
+      document.body.classList.remove("ai-min");
     }
     aiApplyLayout();
     aiSyncDock();
@@ -10907,8 +10967,44 @@
     document.getElementById("hudTabToggle").addEventListener("click", function(){
       document.getElementById("hudTab").classList.toggle("min");
     });
-    document.getElementById("aiToggleBtn").addEventListener("click", function(){ aiOpen(!document.getElementById("aiDrawer").classList.contains("open")); });
-    document.getElementById("aiCloseBtn").addEventListener("click", function(){ aiOpen(false); });
+    document.getElementById("aiToggleBtn").addEventListener("click", function(){
+      const drawer = document.getElementById("aiDrawer");
+      const dock = document.getElementById("aiDock");
+      const floatBar = document.getElementById("aiFloatBar");
+      if(!document.body.classList.contains("immersive-mode")) enterImmersive();
+      const immersiveHost = document.getElementById("immersiveContainer");
+      // A native Fullscreen element paints only its own subtree above the page.
+      // Keep Professor BAI inside that subtree so it is visible on the first click.
+      if(immersiveHost && drawer.parentElement !== immersiveHost) immersiveHost.appendChild(drawer);
+      if(dock.parentElement !== document.body) document.body.appendChild(dock);
+      if(floatBar.parentElement !== document.body) document.body.appendChild(floatBar);
+      aiMinimize(false);
+      aiOpen(true);
+      drawer.classList.remove("collapsed","hidden");
+      drawer.classList.add("open");
+      drawer.style.setProperty("position","fixed","important");
+      drawer.style.setProperty("display","flex","important");
+      drawer.style.setProperty("visibility","visible","important");
+      drawer.style.setProperty("opacity","1","important");
+      drawer.style.setProperty("transform","none","important");
+      drawer.style.setProperty("z-index","99999","important");
+      dock.classList.remove("collapsed","hidden");
+      dock.style.setProperty("position","fixed","important");
+      dock.style.setProperty("z-index","99999","important");
+      floatBar.classList.remove("collapsed","hidden");
+      floatBar.style.setProperty("position","fixed","important");
+      floatBar.style.setProperty("z-index","99999","important");
+    });
+    document.getElementById("aiCloseBtn").addEventListener("click", function(){
+      aiOpen(false);
+      const drawer = document.getElementById("aiDrawer");
+      drawer.classList.remove("collapsed","open");
+      drawer.style.display = "";
+      document.body.classList.remove("ai-min","ai-open","ai-split","ai-compact");
+      AI.min = false;
+      aiApplyLayout();
+      if(document.body.classList.contains("immersive-mode")) exitImmersive();
+    });
     document.getElementById("aiHideBtn").addEventListener("click", function(){ aiMinimize(true); });
     document.getElementById("aiDockShow").addEventListener("click", function(){ aiMinimize(false); });
     document.getElementById("aiDockReplay").addEventListener("click", aiReplay);
