@@ -5049,6 +5049,9 @@
   document.addEventListener("click", closeDropdown);
 
   function allowedLabelOptions(){
+    if(state.strategy === "laser" && state.stringFocusMode === "natural"){
+      return NOTES.map(function(note, pitchClass){ return { pitchClass:pitchClass, label:note }; });
+    }
     const degrees = activeDegreeSet();
     const out = [];
     degrees.forEach(deg=>{
@@ -5160,6 +5163,30 @@
 
   function gradeLaser(c){
     const correct = new Set(), wrong = new Set(), missed = new Set();
+    const strings = activeStrings();
+    if(state.stringFocusMode === "natural"){
+      const selectedIndices = Array.isArray(c.stringIndices) ? c.stringIndices : [c.stringIndex];
+      const required = new Set();
+      selectedIndices.forEach(function(sIdx){
+        const sDef = strings[sIdx];
+        if(!sDef) return;
+        for(let fret=0; fret<=FRET_COUNT; fret++){
+          const key = sIdx+"-"+fret;
+          const expectedNote = NOTES[pitchClassAt(sDef, fret)];
+          required.add(key);
+          const marker = state.markers[key];
+          if(marker && marker.label === expectedNote && marker.pitchClass === pitchClassAt(sDef, fret)){
+            correct.add(key);
+          }
+        }
+      });
+      Object.keys(state.markers).forEach(function(key){
+        if(!required.has(key)) wrong.add(key);
+      });
+      required.forEach(function(key){ if(!correct.has(key)) missed.add(key); });
+      finalizeGrade(correct, wrong, missed, required.size, [], false);
+      return;
+    }
     Object.keys(state.markers).forEach(key=>{
       const sIdx = parseInt(key.split("-")[0], 10);
       if(sIdx !== c.stringIndex) return;
@@ -8602,6 +8629,8 @@
       t = state.learn.meta.title;
     } else if(state.workstationMode === "sandbox"){
       t = "Groove Sandbox \u2014 " + (GENRE_NAMES[state.groove.genre] || "Groove") + " at " + state.groove.bpm + " BPM";
+    } else if(state.strategy === "laser" && state.stringFocusMode === "natural"){
+      t = "String Focus — Natural Chromatic Notes";
     } else {
       const fm = FOCUS_MODE_META[state.focusMode];
       t = (STRATEGY_NAMES[state.strategy] || "Training") + " \u2014 " + (fm ? fm.name : "") + " in " + state.key +
