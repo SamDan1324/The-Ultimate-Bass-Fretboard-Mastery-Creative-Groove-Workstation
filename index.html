@@ -188,6 +188,10 @@
     color:var(--text-main);
   }
   .toggle-row.compact{margin-top:10px;}
+  .string-focus-choices{display:flex;gap:7px;flex-wrap:wrap;margin:7px 0;}
+  .string-focus-choices button{min-width:38px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg-panel-raised);color:var(--text-dim);font-weight:800;cursor:pointer;}
+  .string-focus-choices button.active{background:linear-gradient(180deg,var(--accent-cyan),#1a8f8f);color:#04211f;border-color:#9fffff;}
+  #stringFocusMode button{font-size:11px;padding:8px 6px;}
 
   .switch-row{
     display:flex;
@@ -1463,6 +1467,14 @@
     padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);
   }
   .ai-drawer.open{transform:translateX(0);}
+  /* Opaque viewport-pinned fretboard while Professor BAI is open or minimized. */
+  body.ai-open #immersiveContainer,
+  body.ai-split #immersiveContainer,
+  body.ai-min #immersiveContainer{
+    position:fixed !important; inset:0 !important; height:100dvh !important;
+    overflow:hidden !important; background:#0b1120 !important; z-index:1000 !important;
+  }
+  body.ai-open .ai-drawer, body.ai-split .ai-drawer, body.ai-min .ai-drawer{z-index:1002;}
   .ai-head{display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding:16px 16px 10px; border-bottom:1px solid var(--line);}
   .ai-head h2{margin:0; font-size:17px; color:var(--accent-cyan);}
   .ai-head p{margin:3px 0 0; font-size:11.5px; color:var(--text-dim);}
@@ -1728,8 +1740,8 @@
       <button type="button" id="aiKeyShow">Show</button>
     </div>
     <div class="ai-key-row">
-      <input type="text" id="aiModelInput" list="aiModelList" placeholder="Model (default gemini-3.8-flash)" autocomplete="off" spellcheck="false" aria-label="Gemini model name">
-      <datalist id="aiModelList"><option value="gemini-3.8-flash"></option><option value="gemini-3.6-flash"></option><option value="gemini-3.5-flash"></option></datalist>
+      <input type="text" id="aiModelInput" list="aiModelList" placeholder="Model (default gemini-2.5-flash)" autocomplete="off" spellcheck="false" aria-label="Gemini model name">
+      <datalist id="aiModelList"><option value="gemini-2.5-flash"></option><option value="gemini-3.6-flash"></option><option value="gemini-3.5-flash"></option></datalist>
     </div>
     <label for="aiGroqKeyInput">Groq API Key (Optional &middot; Free Tier 2 backup)</label>
     <div class="ai-key-row">
@@ -1859,6 +1871,19 @@
 
     <div class="control-card" id="focusModeCard">
       <div class="label">FOCUS TRAINING MODE</div>
+      <div class="label" style="margin-top:12px;">STRING FOCUS — SELECT ANY COMBINATION</div>
+      <div id="stringFocusChoices" class="string-focus-choices" aria-label="Select strings for String Focus">
+        <button type="button" data-sf-name="B" aria-pressed="false">B</button>
+        <button type="button" data-sf-name="E" aria-pressed="true">E</button>
+        <button type="button" data-sf-name="A" aria-pressed="true">A</button>
+        <button type="button" data-sf-name="D" aria-pressed="true">D</button>
+        <button type="button" data-sf-name="G" aria-pressed="true">G</button>
+      </div>
+      <div class="toggle-row compact" id="stringFocusMode">
+        <button type="button" data-sf-mode="fixed" class="active">Fixed Key (Scale/Solfa)</button>
+        <button type="button" data-sf-mode="natural">Natural Notes (All 12 Chromatic Notes)</button>
+      </div>
+      <div class="switch-sub">Choose one or more strings. Natural Notes drills every semitone without locking the exercise to the master key.</div>
       <select id="focusSelect" class="control-select">
         <optgroup label="Core Tonal Sets">
           <option value="naturals">Naturals Only (Ionian / Major Scale)</option>
@@ -2218,6 +2243,8 @@
     keyMode: "manual", // 'manual' | 'auto'
     notation: "alphabet", // 'alphabet' | 'solfa'
     focusMode: "naturals", // any key in DEGREE_SETS
+    stringFocusNames: ["E","A","D","G"],
+    stringFocusMode: "fixed",
     unboxEnabled: false,
     audioEnabled: true,
     audioInitialized: false,
@@ -3330,20 +3357,26 @@
   // --- Strategy D: Single String Laser Focus ---
   function generateLaserChallenge(){
     const strings = activeStrings();
-    const degrees = activeDegreeSet();
-    const stringIndex = Math.floor(Math.random()*strings.length);
+    const chosen = (state.stringFocusNames || []).filter(function(name){ return strings.some(function(d){ return d.name === name; }); });
+    const selected = chosen.length ? chosen : strings.map(function(d){ return d.name; });
+    const stringIndices = selected.map(function(name){ return strings.findIndex(function(d){ return d.name === name; }); }).filter(function(i){ return i >= 0; });
+    const degrees = state.stringFocusMode === "natural" ? Array.from({length:12}, function(_,i){ return i; }) : activeDegreeSet();
     const degree = degrees[Math.floor(Math.random()*degrees.length)];
-    const pitchClass = (keyIndex() + degree) % 12;
-    const label = state.notation === "alphabet" ? NOTES[pitchClass] : SOLFA[degree];
+    const pitchClass = state.stringFocusMode === "natural" ? degree : (keyIndex() + degree) % 12;
+    const label = state.stringFocusMode === "natural"
+      ? NOTES[pitchClass]
+      : (state.notation === "alphabet" ? NOTES[pitchClass] : SOLFA[degree]);
     const correctSet = new Set();
-    for(let f=0; f<=FRET_COUNT; f++){
-      if(pitchClassAt(strings[stringIndex], f) === pitchClass) correctSet.add(stringIndex+"-"+f);
-    }
+    stringIndices.forEach(function(stringIndex){
+      for(let f=0; f<=FRET_COUNT; f++){
+        if(pitchClassAt(strings[stringIndex], f) === pitchClass) correctSet.add(stringIndex+"-"+f);
+      }
+    });
     state.challenge = {
-      type: "laser",
-      degree, pitchClass, label,
-      stringIndex, stringName: strings[stringIndex].name,
-      correctSet
+      type:"laser", degree:degree, pitchClass:pitchClass, label:label,
+      stringIndex:stringIndices[0], stringIndices:stringIndices,
+      stringName:selected.join(" + "), correctSet:correctSet,
+      chromatic:state.stringFocusMode === "natural"
     };
     state.markers = {};
     state.graded = false;
@@ -3355,7 +3388,7 @@
     if(!c) return "-";
     if(c.type === "hunter") return c.label;
     if(c.type === "matrix") return "Full Matrix";
-    if(c.type === "laser") return c.label + " on " + c.stringName + " string";
+    if(c.type === "laser") return c.label + " on " + c.stringName + (c.chromatic ? " (chromatic)" : " string(s)");
     if(c.type === "interval") return c.intervalName;
     return "-";
   }
@@ -3669,7 +3702,7 @@
     const along = totalAlongLength();
     strings.forEach(function(sDef, sIdx){
       const lane = document.createElement("div");
-      lane.className = sIdx === c.stringIndex ? "laser-lane" : "laser-dim";
+      lane.className = (c.stringIndices || [c.stringIndex]).indexOf(sIdx) >= 0 ? "laser-lane" : "laser-dim";
       const cy = stringCenterY(sIdx) - STRING_ROW_HEIGHT/2;
       const p = orient(0, cy), sz = orientSize(along, STRING_ROW_HEIGHT);
       lane.style.left = p.x + "px";
@@ -4796,6 +4829,24 @@
     svg.setAttribute("width", parseFloat(inner.style.width) || 0);
     svg.setAttribute("height", parseFloat(inner.style.height) || 0);
     const list = [];
+    (AI.boardBoxes || []).forEach(function(b){
+      const p1=vecPoint(b.s1,b.f1), p2=vecPoint(b.s2,b.f2), x=Math.min(p1.x,p2.x), y=Math.min(p1.y,p2.y);
+      const w=Math.max(18,Math.abs(p2.x-p1.x)), h=Math.max(18,Math.abs(p2.y-p1.y)), g=vEl("g",{"class":"vec-group"});
+      g.appendChild(vEl("rect",{x:x,y:y,width:w,height:h,rx:7,fill:b.color,"fill-opacity":"0.10",stroke:b.color,"stroke-width":3,"stroke-opacity":"0.95"}));
+      if(b.label){const tx=vEl("text",{x:x+5,y:y-6,fill:b.color,"font-size":13,"font-weight":800,"paint-order":"stroke",stroke:"#0b0f18","stroke-width":3});tx.textContent=b.label;g.appendChild(tx);}
+      svg.appendChild(g);
+    });
+    (AI.boardArrows || []).forEach(function(a){
+      const pa=vecPoint(a.from.s,a.from.f), pb=vecPoint(a.to.s,a.to.f), color=a.color||"#38bdf8";
+      const dx=pb.x-pa.x,dy=pb.y-pa.y,len=Math.max(1,Math.hypot(dx,dy)),ux=dx/len,uy=dy/len,g=vEl("g",{"class":"vec-group"});
+      const defs=vEl("defs"),id="baiArrowHead"+Math.random().toString(36).slice(2);
+      const mk=vEl("marker",{id:id,markerWidth:12,markerHeight:12,refX:10,refY:6,orient:"auto",markerUnits:"userSpaceOnUse"});
+      mk.appendChild(vEl("path",{d:"M1 1 L11 6 L1 11 Z",fill:color}));defs.appendChild(mk);g.appendChild(defs);
+      g.appendChild(vEl("line",{x1:pa.x,y1:pa.y,x2:pb.x-ux*8,y2:pb.y-uy*8,stroke:"#06101d","stroke-width":8,"stroke-linecap":"round"}));
+      g.appendChild(vEl("line",{x1:pa.x,y1:pa.y,x2:pb.x-ux*8,y2:pb.y-uy*8,stroke:color,"stroke-width":4,"stroke-linecap":"round","marker-end":"url(#"+id+")"}));
+      if(a.label){const tx=vEl("text",{x:(pa.x+pb.x)/2,y:(pa.y+pb.y)/2-9,fill:color,"font-size":13,"font-weight":800,"text-anchor":"middle","paint-order":"stroke",stroke:"#0b0f18","stroke-width":3});tx.textContent=a.label;g.appendChild(tx);}
+      svg.appendChild(g);
+    });
     const L = state.learn;
     if(state.workstationMode === "learn" && L.lessonId === "unison" && L.idx >= 0 && L.steps[L.idx] && L.steps[L.idx].vec){
       L.steps[L.idx].vec.forEach(function(v){ list.push(v); });
@@ -8110,6 +8161,27 @@
       refreshMode(false);
     });
 
+    const sfChoices = document.getElementById("stringFocusChoices");
+    if(sfChoices) sfChoices.addEventListener("click", function(e){
+      const b = e.target.closest("button[data-sf-name]"); if(!b) return;
+      const name = b.dataset.sfName, names = new Set(state.stringFocusNames || []);
+      if(names.has(name)) names.delete(name); else names.add(name);
+      if(!names.size) names.add(name);
+      state.stringFocusNames = Array.from(names);
+      Array.prototype.forEach.call(sfChoices.querySelectorAll("button"), function(x){
+        const on = names.has(x.dataset.sfName);
+        x.classList.toggle("active",on); x.setAttribute("aria-pressed",on ? "true" : "false");
+      });
+      if(state.strategy === "laser") generateChallenge();
+    });
+    const sfMode = document.getElementById("stringFocusMode");
+    if(sfMode) sfMode.addEventListener("click", function(e){
+      const b = e.target.closest("button[data-sf-mode]"); if(!b) return;
+      state.stringFocusMode = b.dataset.sfMode;
+      Array.prototype.forEach.call(sfMode.querySelectorAll("button"), function(x){ x.classList.toggle("active",x === b); });
+      if(state.strategy === "laser") generateChallenge();
+    });
+
     document.getElementById("focusSelect").addEventListener("change", (e)=>{
       state.focusMode = e.target.value;
       if(state.workstationMode === "learn"){
@@ -8543,7 +8615,7 @@
      12. BASS PROFESSOR AI: offline theory engine, bi-directional neck control, spoken replies
      ========================================================= */
   let aiOverlay = {};
-  const AI = { loop:false, bassMute:false, launchId:0, voiceOn:true, voice:null, timers:[], lastSpec:null, lastQuery:"", started:false, path:null, chips:false, chipActive:-1, rhBadge:null, tip:null, modes:null, tl:null, tlNow:null };
+  const AI = { loop:false, bassMute:false, launchId:0, voiceOn:true, voice:null, timers:[], lastSpec:null, lastQuery:"", started:false, path:null, chips:false, chipActive:-1, rhBadge:null, tip:null, modes:null, tl:null, tlNow:null, boardArrows:[], boardBoxes:[] };
   const AI_FLAT_PARENTS = [5,10,3,8,1,6];
   const AI_NOTE_BASE = { c:0, d:2, e:4, f:5, g:7, a:9, b:11 };
 
@@ -8763,6 +8835,8 @@
   function aiClearOverlay(){
     aiOverlay = {};
     AI.path = null; AI.chips = false; AI.chipActive = -1; AI.rhBadge = null; AI.tip = null; AI.modes = null; AI.tlNow = null;
+    AI.boardArrows = spec && spec.boardArrows ? spec.boardArrows : [];
+    AI.boardBoxes = spec && spec.boardBoxes ? spec.boardBoxes : [];
     renderFretboard();
   }
   function buildAiMarkerEl(entry){
@@ -8989,6 +9063,7 @@
       aiRevealNeck();
       return;
     }
+    if((AI.boardArrows.length || AI.boardBoxes.length)) setVectors(true);
     if(spec.vectors){
       setVectors(true);
       if(spec.vsel) state.vectors.sel = spec.vsel;
@@ -9004,7 +9079,7 @@
       if(spec.band === undefined) spec.band = aiBandFromQuery(spec);     // offline / legacy specs: honour "with piano and drums" typed by the user
       aiLaunch(spec);                                                    // bass + piano + drums share one start timestamp
     }
-    if(spec.overlay || spec.path || spec.vectors || spec.chips || spec.modes || spec.pivot) aiRevealNeck();
+    if(spec.overlay || spec.path || spec.vectors || spec.chips || spec.modes || spec.pivot || AI.boardArrows.length || AI.boardBoxes.length) aiRevealNeck();
   }
 
   // ---------- knowledge base (concept questions) ----------
@@ -9405,7 +9480,7 @@
   const GEMINI_KEY_STORE = "bassws_gemini_key_v1";
   const GEMINI_MODEL_STORE = "bassws_gemini_model_v1";
   const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/";
-  const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"];
+  const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-3.6-flash", "gemini-3.5-flash"];
   const GROQ_KEY_STORE = "bassws_groq_key_v1";
   const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
   const GROQ_FALLBACK_MODEL = "llama-3.3-70b-versatile";
@@ -9413,7 +9488,7 @@
   const GROQ_MODELS_ENDPOINT = "https://api.groq.com/openai/v1/models";
   const AI_TIMEOUT_MS = 25000;                     // Groq waits up to 25 s
   const AI_GEMINI_TIMEOUT_MS = 12000;              // Gemini gets 12 s, then the cascade rolls straight over to Groq
-  const AI_TIER1_MODEL = "gemini-3.8-flash";
+  const AI_TIER1_MODEL = "gemini-2.5-flash";
   AI.key = ""; AI.groqKey = ""; AI.lastTier = ""; AI.model = ""; AI.history = []; AI.busy = false;
 
   function aiStoreGet(k){ try{ return localStorage.getItem(k) || ""; }catch(e){ return ""; } }
@@ -9453,6 +9528,8 @@
       "You are Professor Bass, a world-class bass guitar teacher embedded in an interactive 24-fret bass fretboard workstation. Answer every bass and music-theory question accurately, warmly and concisely. Your words are read aloud by a text-to-speech voice, so write plain spoken prose of at most about 150 words: no markdown headings, no tables, no emoji, no bullet symbols.",
       "CURRENT APP STATE: master key " + state.key + ", notation " + (state.notation === "solfa" ? "Tonic Solfa" : "Alphabet") + ", strings " + strings + ", 24 frets.",
       "HOUSE KNOWLEDGE: (1) Tonic Solfa dual labels: the minor 3rd is Ri / Mo and the flat 7th is Li / Toh; enharmonic boundaries Mi# = Fa, Fa-flat = Mi, Ti# = Do, Do-flat = Ti. (2) String geometry: neighbouring strings are a perfect 4th apart, so the same pitch is 5 frets away on the next string; the octave is one string up and 7 frets back, or two strings up and 2 frets over. (3) The 3-fret pivot: the relative minor root sits exactly 3 frets back on the same string from the major root. (4) Seven interlocking mode shapes: Box 1 Ionian, 2 Dorian, 3 Phrygian, 4 Lydian, 5 Mixolydian, 6 Aeolian, 7 Locrian. (5) Tab reading: bottom line = lowest, thickest string; h hammer-on, p pull-off, / slide up, backslash slide down, X ghost note, S slap, P pop.",
+      "You are Professor BAI: an encyclopedic, open-ended bass virtuoso, arranger, theorist and visual teacher. Handle any musical concept, theory, genre, technique, composition, transcription, or uploaded material the user provides. Translate it into playable bass-fretboard sequences, clear directional movement, shape boundaries, and suitable backing tracks. Explain unfamiliar ideas accurately rather than forcing them into a preset lesson.",
+      "VISUAL MAPPING EXTENSIONS: any BOARD_CMD object may include optional arrows:[{from:{s:0,f:3},to:{s:0,f:5},color:\"#38bdf8\",label:\"Shift\"}] and boxes:[{s1:0,f1:3,s2:3,f2:5,color:\"#f59e0b\",label:\"Shape 1\"}]. String indices follow the active tuning. Use arrows for movement and boxes to enclose scale, chord, fingering or genre-specific shapes.",
       "CRITICAL — BOARD COMMAND FORMAT: whenever the user asks to show, play, demonstrate, teach, or generate ANY groove, scale, mode, riff, fill, progression, chord, or exercise, you MUST append a valid JSON command wrapped in <BOARD_CMD>...</BOARD_CMD> tags at the very end of your reply. The board will animate and play it automatically. Example:\n<BOARD_CMD>" + JSON.stringify(exSequence) + "</BOARD_CMD>\nMore examples:\n<BOARD_CMD>" + JSON.stringify(exHighlight) + "</BOARD_CMD>",
       "SEQUENCE ACTION (the primary format): {\"action\":\"sequence\",\"key\":\"C\",\"bpm\":100,\"steps\":[{\"string\":2,\"fret\":3,\"label\":\"Do\",\"finger\":1,\"duration\":500}]}. String index: 0 = LOWEST string (E on 4-string, B on 5-string), 1 = A, 2 = D, 3 = G (4-string). On a 5-string bass: 0 = B, 1 = E, 2 = A, 3 = D, 4 = G. Fret is 0-24. Duration is milliseconds per step. Optional per-step \"tech\":\"slap\" or \"pop\" makes the on-screen right hand slap (thumb) or pop (index). Optional per-step \"link\":\"h\" (hammer-on), \"p\" (pull-off), \"/\" (slide up) or \"\\\\\" (slide down) on a step that stays on the same string animates the left-hand technique with no right-hand pluck. Optional \"action\":\"highlight_notes\" with \"chord_type\" or \"scale_type\" and \"notes\" array of semitone offsets for static chord/scale highlights. Other actions: {\"action\":\"load_lesson\",\"lesson_id\":\"<id>\"}, {\"action\":\"set_notation\",\"mode\":\"solfa\"}, {\"action\":\"set_key\",\"key\":\"D\"}, {\"action\":\"show_mode_boxes\"}, {\"action\":\"show_pivot\"}, {\"action\":\"clear_neck\"}.",
       "BACKING BAND (built-in electric piano + drums): the sequence command also accepts optional fields: \"chords\" = an array of {\"chord\":\"Dm9\",\"beat\":0,\"duration\":4} objects (beat and duration are counted in BEATS from the start of the sequence, 4 beats per bar; chord symbols such as Dm9, G13, Cmaj9, A7b13, Bbm7, F#m7b5, Ebmaj7 are played as warm Rhodes-style comping with a soft pad), \"drums\": true (crisp kick, snare and hi-hat loop with a fill into the last bar) and \"bpm\". The board plays the piano and drums in time with your bassline automatically. Use them whenever the user asks you to jam, solo, play fills or play a groove OVER a chord progression, or asks for piano, keys, drums or a backing band. When you use them: (1) write a rich, professional 24 to 32 step bassline that follows the chords bar by bar (root on the downbeat, then chord tones, 9ths and 13ths, with octave pops using \"tech\":\"pop\", slides using \"link\":\"/\", hammer-ons \"link\":\"h\", pull-offs \"link\":\"p\", ghost notes, and a chromatic fill that approaches the next chord root from a half step); (2) give every step a \"beats\" length (0.25, 0.5, 0.75 or 1) instead of milliseconds so the notes lock to the chord grid, and make the beats of all steps add up to the total length of the chords array; (3) include the matching \"chords\" array and \"drums\":true, set \"key\" to the tonic of the progression and \"bpm\" between 85 and 120. Hammer-ons, pull-offs and slides must stay on the same string as the previous step. Example (ii-V-I-VI in C, 32 steps, 16 beats): <BOARD_CMD>" + JSON.stringify(exBand) + "</BOARD_CMD>",
@@ -9644,6 +9721,8 @@
     const strings = activeStrings().map(function(d){ return d.name; }).join(" ");
     return [
       "You are Professor Bass, a bass teacher inside a fretboard app. Reply in plain spoken prose, at most 80 words, no markdown. Master key: " + state.key + ". Strings: " + strings + ".",
+      "You are Professor BAI, an encyclopedic open-ended bass virtuoso and visual teacher. Map any musical concept, genre, theory, technique, transcription or uploaded material into useful fretboard sequences, directional arrows, shape boxes and backing tracks; do not limit answers to preset lessons.",
+      "Optional visual schema: arrows:[{from:{s:0,f:3},to:{s:0,f:5},color:\"#38bdf8\",label:\"Shift\"}], boxes:[{s1:0,f1:3,s2:3,f2:5,color:\"#f59e0b\",label:\"Shape 1\"}]. Coordinates use active string indices and frets.",
       "When asked to show, play, jam, solo, fill, groove, scale or chord, END the reply with <BOARD_CMD>[...]</BOARD_CMD> holding ONLY valid JSON.",
       "Schema: {\"action\":\"sequence\",\"key\":\"C\",\"bpm\":100,\"drums\":true,\"chords\":[{\"chord\":\"Dm9\",\"beat\":0,\"duration\":4},{\"chord\":\"G13\",\"beat\":4,\"duration\":4}],\"steps\":[{\"string\":1,\"fret\":5,\"beats\":0.75},{\"string\":2,\"fret\":3,\"beats\":0.5,\"link\":\"h\"},{\"string\":3,\"fret\":7,\"beats\":0.5,\"tech\":\"pop\"}]}",
       "String index 0 = lowest string (4-string E A D G = 0..3; 5-string B E A D G = 0..4). Fret 0-24. \"key\" = tonic of the tune (it sets the master root key). \"beats\" = step length (0.25, 0.5, 0.75 or 1), 4 beats per bar. Optional per step: \"link\" h (hammer-on), p (pull-off), / (slide up) on the SAME string as the previous step; \"tech\" slap or pop; \"ghost\":true; \"rest\":true.",
@@ -9985,6 +10064,15 @@
   // The bridge: converts a parsed command object into the same spec format aiRun already understands
   function aiCmdToSpec(c){
     const spec = aiCmdToSpecCore(c);
+    if(spec && c && typeof c === "object"){
+      const validPoint = function(p){ return p && Number.isInteger(Number(p.s)) && Number(p.s)>=0 && Number(p.s)<activeStrings().length && Number.isFinite(Number(p.f)) && Number(p.f)>=0 && Number(p.f)<=FRET_COUNT; };
+      if(Array.isArray(c.arrows)) spec.boardArrows = c.arrows.slice(0,48).filter(function(a){ return a && validPoint(a.from) && validPoint(a.to); }).map(function(a){
+        return {from:{s:Number(a.from.s),f:Number(a.from.f)},to:{s:Number(a.to.s),f:Number(a.to.f)},color:/^#[0-9a-f]{3,8}$/i.test(String(a.color||""))?String(a.color):"#38bdf8",label:String(a.label||"").slice(0,40)};
+      });
+      if(Array.isArray(c.boxes)) spec.boardBoxes = c.boxes.slice(0,32).filter(function(b){
+        return b && Number.isInteger(Number(b.s1)) && Number.isInteger(Number(b.s2)) && Number(b.s1)>=0 && Number(b.s2)>=0 && Number(b.s1)<activeStrings().length && Number(b.s2)<activeStrings().length && Number.isFinite(Number(b.f1)) && Number.isFinite(Number(b.f2)) && Number(b.f1)>=0 && Number(b.f2)>=0 && Number(b.f1)<=FRET_COUNT && Number(b.f2)<=FRET_COUNT;
+      }).map(function(b){ return {s1:Number(b.s1),f1:Number(b.f1),s2:Number(b.s2),f2:Number(b.f2),color:/^#[0-9a-f]{3,8}$/i.test(String(b.color||""))?String(b.color):"#f59e0b",label:String(b.label||"").slice(0,40)}; });
+    }
     try{
       const flag = c && (c.showModeBoxes === true || c.show_mode_boxes === true || String(c.showModeBoxes).toLowerCase() === "true");
       const asked = /\bmode[\s-]*(box|boxes|shape|shapes)\b/i.test(String(AI.lastQuery || ""));
