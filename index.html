@@ -2837,6 +2837,7 @@
      Driven by the optional "chords", "drums" and "bpm" fields of a <BOARD_CMD> sequence. Everything is synthesised with
      oscillators and noise: no samples, no network. A look-ahead scheduler keeps it sample-accurate and in time with the bass.
      ========================================================= */
+  let isGroovePlaying = false;
   const Band = { run:null };
   const BAND_ROOTS = { c:0, d:2, e:4, f:5, g:7, a:9, b:11 };
 
@@ -2923,6 +2924,7 @@
   }
 
   function bandStop(){
+    isGroovePlaying = false;
     const r = Band.run;
     if(!r) return;
     Band.run = null;
@@ -2930,10 +2932,12 @@
     try{
       const t = r.ctx.currentTime;
       r.bus.gain.cancelScheduledValues(t);
-      r.bus.gain.setTargetAtTime(0, t, 0.03);
-      setTimeout(function(){ r.nodes.forEach(function(n){ try{ n.disconnect(); }catch(e){} }); }, 600);
+      r.bus.gain.setValueAtTime(0, t);
+      r.nodes.forEach(function(n){ try{ n.disconnect(); }catch(e){} });
     }catch(e){}
   }
+  // Shared cleanup entry point: stop the scheduler and silence/disconnect all backing-band voices.
+  function stopBackingTrack(){ bandStop(); }
 
   // Warm, clean electric piano: FM tine (decaying index) + chorus-detuned sine + a tiny bell partial, through a soft low-pass
   function bandEPNote(ctx, dest, midi, when, dur, vel){
@@ -3096,9 +3100,11 @@
     const t0 = (typeof T0 === "number" && isFinite(T0)) ? T0 : ctx.currentTime + 0.15;
     const loopSec = totalBeats * spb;
     const run = { ctx:ctx, bus:bus, timer:null, nodes:[bus, lp, dly, fb, wet] };
+    isGroovePlaying = true;
     try{ bandEPNote(ctx, bus, 60, ctx.currentTime, 0.5, 0.0001); }catch(e){}     // pre-warm the piano voice graph (silent)
     let idx = 0, round = 0;
     function playEv(e, at){
+      if(!isGroovePlaying || Band.run !== run) return;
       const when = Math.max(ctx.currentTime, at);
       try{
         if(e.k === "kick") bandKick(ctx, bus, when, e.v);
@@ -3109,7 +3115,7 @@
       }catch(err){}
     }
     function pump(){
-      if(Band.run !== run) return;
+      if(!isGroovePlaying || Band.run !== run) return;
       const horizon = ctx.currentTime + (document.hidden ? 1.5 : 0.25);
       let guard = 0;
       while(guard++ < 600){
@@ -8995,9 +9001,16 @@
       if(spec.band) bandStart(spec.band, T0);
       const roundSeconds = aiSpecLoopSec(spec);
       aiPlay(spec.events, T0, roundSeconds);
-      /* The backing band is one-shot unless Loop is enabled; fade it immediately after the sequence round. */
+      /* Cut the backing band at the exact end of the final bass note, not at the end of its rounded bar. */
       if(spec.band && !AI.loop){
-        aiTimer(function(){ if(token === AI.launchId && !AI.loop) bandStop(); }, roundSeconds * 1000 + 180);
+        const finalEvent = spec.events.reduce(function(last, ev){
+          const end = (Number(ev.t) || 0) / 1000 + (ev.dur ? Number(ev.dur) / 0.94 : 60000 / (spec.bpm || spec.band.bpm || 96) / 1000);
+          return Math.max(last, end);
+        }, 0);
+        const stopDelay = Math.max(0, (T0 - aiClockNow() + finalEvent) * 1000);
+        aiTimer(function(){
+          if(token === AI.launchId && !AI.loop) stopBackingTrack();
+        }, stopDelay);
       }
     }
     go();
