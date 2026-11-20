@@ -773,7 +773,7 @@
   body.freestyle-mode #fretboard .marker,
   body.freestyle-mode #fretboard .marker-tooltip,
   body.freestyle-mode .note-dropdown,
-  body.freestyle-mode #vectorRig,
+  body.freestyle-mode #vectorRig,\n  body.freestyle-mode #bai-vector-overlay,
   body.freestyle-mode .pivot-toast{display:none !important;}
   .hud-mini-rh{display:flex; align-items:stretch;}
   .hud-mini-rh .rh-toggle-btn{min-height:38px; padding:8px 12px; font-size:12px;}
@@ -1396,7 +1396,7 @@
   @keyframes laserFlash{0%{box-shadow:0 0 0 rgba(255,120,120,0);}40%{box-shadow:0 0 26px rgba(255,120,120,0.95), inset 0 0 0 2px rgba(255,120,120,0.9);}100%{box-shadow:0 0 18px rgba(53,208,208,0.45), inset 0 0 0 1px rgba(53,208,208,0.75);}}
 
   /* ---------- Unison Vector Arrows ---------- */
-  .vector-rig{position:absolute; left:0; top:0; z-index:11; pointer-events:none; overflow:visible;}
+  #bai-vector-overlay{position:absolute; left:0; top:0; z-index:50; pointer-events:none; width:100%; height:100%; overflow:visible;}\n  .vector-rig{position:absolute; left:0; top:0; z-index:11; pointer-events:none; overflow:visible;}
   .vec-group{animation:vecFade .35s ease both;}
   @keyframes vecFade{from{opacity:0;}to{opacity:1;}}
   .vec-line{stroke-dasharray:1; stroke-dashoffset:1; animation:vecDraw .6s ease-out forwards;}
@@ -1758,8 +1758,8 @@
       <button type="button" id="aiKeyShow">Show</button>
     </div>
     <div class="ai-key-row">
-      <input type="text" id="aiModelInput" list="aiModelList" placeholder="Model (default gemini-2.5-flash)" autocomplete="off" spellcheck="false" aria-label="Gemini model name">
-      <datalist id="aiModelList"><option value="gemini-2.5-flash"></option><option value="gemini-3.6-flash"></option><option value="gemini-3.5-flash"></option></datalist>
+      <input type="text" id="aiModelInput" list="aiModelList" placeholder="Model (default gemini-3.5-flash-lite)" autocomplete="off" spellcheck="false" aria-label="Gemini model name">
+      <datalist id="aiModelList"><option value="gemini-3.5-flash-lite"></option><option value="gemini-3.8-flash"></option></datalist>
     </div>
     <label for="aiGroqKeyInput">Groq API Key (Optional &middot; Free Tier 2 backup)</label>
     <div class="ai-key-row">
@@ -1772,7 +1772,7 @@
       <button type="button" id="aiKeyForget">Forget keys</button>
     </div>
     <div class="ai-cfg-status" id="aiCfgStatus" role="status"></div>
-    <div class="ai-cfg-note">Get a free Gemini key at aistudio.google.com/apikey. Keys are saved only in this browser's localStorage. The Gemini key is sent only to Google (generativelanguage.googleapis.com) and the optional free Groq key (starts with gsk_) only to Groq (api.groq.com), both over HTTPS. Anyone who can use this browser profile could read them, so use keys you can revoke. Answers cascade: Gemini 3.8 Flash, then Groq (only if you added a key; its active chat model is picked automatically), then the built-in engine when you are offline or every online layer fails.</div>
+    <div class="ai-cfg-note">Get a free Gemini key at aistudio.google.com/apikey. Keys are saved only in this browser's localStorage. The Gemini key is sent only to Google (generativelanguage.googleapis.com) and the optional free Groq key (starts with gsk_) only to Groq (api.groq.com), both over HTTPS. Anyone who can use this browser profile could read them, so use keys you can revoke. Answers cascade: Gemini 3.5 Flash Lite, then Gemini 3.8 Flash, then Groq (if you added a key), then the built-in engine when offline or all online layers fail.</div>
   </div>
   <div class="ai-log" id="aiLog" aria-live="polite"></div>
   <div class="ai-chips" id="aiChips"></div>
@@ -3120,7 +3120,7 @@
         if(at >= horizon) break;
         playEv(ev[idx++], at);
       }
-      if(idx >= ev.length && !AI.loop && ctx.currentTime > t0 + (round + 1) * loopSec + 2.5) bandStop();
+      if(idx >= ev.length && !AI.loop && ctx.currentTime > t0 + (round + 1) * loopSec + 0.15) bandStop();
     }
     Band.run = run;
     pump();
@@ -4833,19 +4833,22 @@
   function renderVectors(){
     const inner = document.getElementById("fretboardInner");
     if(!inner) return;
-    let svg = document.getElementById("vectorRig");
+    let svg = document.getElementById("bai-vector-overlay");
     if(!svg){
       svg = document.createElementNS(VNS, "svg");
-      svg.setAttribute("id", "vectorRig");
+      svg.setAttribute("id", "bai-vector-overlay");
       svg.setAttribute("class", "vector-rig");
       svg.setAttribute("aria-hidden", "true");
       inner.appendChild(svg);
     }
     while(svg.firstChild) svg.removeChild(svg.firstChild);
     const V = state.vectors;
-    if(!V.enabled) return;
-    svg.setAttribute("width", parseFloat(inner.style.width) || 0);
-    svg.setAttribute("height", parseFloat(inner.style.height) || 0);
+    const svgW = parseFloat(inner.style.width) || inner.clientWidth || 0;
+    const svgH = parseFloat(inner.style.height) || inner.clientHeight || 0;
+    svg.setAttribute("width", svgW);
+    svg.setAttribute("height", svgH);
+    svg.setAttribute("viewBox", "0 0 " + svgW + " " + svgH);
+    svg.setAttribute("preserveAspectRatio", "none");
     const list = [];
     (AI.boardBoxes || []).forEach(function(b){
       const p1=vecPoint(b.s1,b.f1), p2=vecPoint(b.s2,b.f2), x=Math.min(p1.x,p2.x), y=Math.min(p1.y,p2.y);
@@ -4869,7 +4872,7 @@
     if(state.workstationMode === "learn" && L.lessonId === "unison" && L.idx >= 0 && L.steps[L.idx] && L.steps[L.idx].vec){
       L.steps[L.idx].vec.forEach(function(v){ list.push(v); });
     }
-    if(V.sel) vecAdjacent(V.sel.s, V.sel.f).forEach(function(v){ list.push(v); });
+    if(V.enabled && V.sel) vecAdjacent(V.sel.s, V.sel.f).forEach(function(v){ list.push(v); });
     if(!list.length) return;
     const defs = vEl("defs");
     ["Down","Up","OctUp","OctDown"].forEach(function(name){
@@ -4970,9 +4973,15 @@
 
     const c = state.challenge;
 
-    if(c && c.type === "laser" && sIdx !== c.stringIndex){
-      flashLaserLane();
-      return;
+    if(c && c.type === "laser"){
+      const activeNames = activeStrings().map(function(d){ return d.name; });
+      const selectedNames = (state.stringFocusNames || []).filter(function(name){ return activeNames.indexOf(name) >= 0; });
+      const allActive = !selectedNames.length || selectedNames.length === activeNames.length;
+      const tappedName = sDef && sDef.name;
+      if(!allActive && selectedNames.indexOf(tappedName) < 0){
+        flashLaserLane();
+        return;
+      }
     }
 
     if(c && c.type === "interval" && key === c.anchorKey){
@@ -5015,13 +5024,19 @@
 
     document.getElementById("fretboardInner").appendChild(dropdown);
     const boardEl = document.getElementById("fretboard");
-    if(state.orientation === "vertical"){
-      dropdown.style.left = (boardEl.offsetLeft + cell.offsetLeft + cell.offsetWidth + 8) + "px";
-      dropdown.style.top = (boardEl.offsetTop + cell.offsetTop) + "px";
-    } else {
-      dropdown.style.left = (boardEl.offsetLeft + cell.offsetLeft) + "px";
-      dropdown.style.top = (boardEl.offsetTop + cell.offsetTop + 40) + "px";
-    }
+    const innerEl = document.getElementById("fretboardInner");
+    const innerRect = innerEl.getBoundingClientRect();
+    let localLeft = state.orientation === "vertical"
+      ? boardEl.offsetLeft + cell.offsetLeft + cell.offsetWidth + 8
+      : boardEl.offsetLeft + cell.offsetLeft;
+    const popupWidth = dropdown.offsetWidth || Math.min(220, window.innerWidth - 24);
+    const viewportX = innerRect.left + localLeft;
+    const clampedViewportX = Math.min(Math.max(viewportX, 12), Math.max(12, window.innerWidth - popupWidth - 12));
+    localLeft = clampedViewportX - innerRect.left;
+    dropdown.style.left = localLeft + "px";
+    dropdown.style.top = (state.orientation === "vertical"
+      ? boardEl.offsetTop + cell.offsetTop
+      : boardEl.offsetTop + cell.offsetTop + 40) + "px";
     openDropdown = dropdown;
   }
 
@@ -8851,11 +8866,21 @@
     });
   }
   function aiClearOverlay(){
+    aiStopSeq();
+    try{ stopPlayback(); }catch(e){}
     aiOverlay = {};
     AI.path = null; AI.chips = false; AI.chipActive = -1; AI.rhBadge = null; AI.tip = null; AI.modes = null; AI.tlNow = null;
-    AI.boardArrows = spec && spec.boardArrows ? spec.boardArrows : [];
-    AI.boardBoxes = spec && spec.boardBoxes ? spec.boardBoxes : [];
+    AI.boardArrows = []; AI.boardBoxes = [];
+    AI.lastSpec = null; AI.replaySpec = null;
+    state.vectors.enabled = false; state.vectors.sel = null;
+    state.modeViz.boxes = false; state.modeViz.pivot = false;
+    document.querySelectorAll(".ai-playing, .marker.ai-marker").forEach(function(el){
+      el.classList.remove("ai-playing");
+      if(el.classList.contains("ai-marker") && el.parentNode) el.parentNode.removeChild(el);
+    });
+    syncVecToggles();
     renderFretboard();
+    aiSyncDock();
   }
   function buildAiMarkerEl(entry){
     const m = document.createElement("div");
@@ -8968,7 +8993,12 @@
       aiBassPrewarm(spec.events);
       const T0 = aiClockNow() + 0.15;
       if(spec.band) bandStart(spec.band, T0);
-      aiPlay(spec.events, T0, aiSpecLoopSec(spec));
+      const roundSeconds = aiSpecLoopSec(spec);
+      aiPlay(spec.events, T0, roundSeconds);
+      /* The backing band is one-shot unless Loop is enabled; fade it immediately after the sequence round. */
+      if(spec.band && !AI.loop){
+        aiTimer(function(){ if(token === AI.launchId && !AI.loop) bandStop(); }, roundSeconds * 1000 + 180);
+      }
     }
     go();
   }
@@ -9066,6 +9096,9 @@
     setTimeout(aiSyncDock, 0);
     AI.path = null; AI.chips = false; AI.chipActive = -1; AI.rhBadge = null; AI.tip = null; AI.modes = null; AI.tlNow = null;
     if(!spec) return;
+    if(spec.clearNeck){ aiClearOverlay(); return; }
+    AI.boardArrows = Array.isArray(spec.boardArrows) ? spec.boardArrows : [];
+    AI.boardBoxes = Array.isArray(spec.boardBoxes) ? spec.boardBoxes : [];
     if(spec.timeline) aiPrepareCanvas();
     else if(spec.events && spec.events.length && !spec.lesson && state.workstationMode === "learn") aiPrepareCanvas();   // leave Learn mode so no stale lesson markers keep an old root lit
     if(spec.notation) aiSetNotation(spec.notation);
@@ -9498,15 +9531,16 @@
   const GEMINI_KEY_STORE = "bassws_gemini_key_v1";
   const GEMINI_MODEL_STORE = "bassws_gemini_model_v1";
   const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/";
-  const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-3.6-flash", "gemini-3.5-flash"];
+  const GEMINI_MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash"];
   const GROQ_KEY_STORE = "bassws_groq_key_v1";
   const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-  const GROQ_FALLBACK_MODEL = "llama-3.3-70b-versatile";
+  const GROQ_FALLBACK_MODEL = "openai/gpt-oss-120b";
   const GROQ_PREFERRED_MODELS = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile"];   // big, higher-limit models first; small rate-limited ones only as a last resort
   const GROQ_MODELS_ENDPOINT = "https://api.groq.com/openai/v1/models";
   const AI_TIMEOUT_MS = 25000;                     // Groq waits up to 25 s
   const AI_GEMINI_TIMEOUT_MS = 12000;              // Gemini gets 12 s, then the cascade rolls straight over to Groq
-  const AI_TIER1_MODEL = "gemini-2.5-flash";
+  const AI_TIER1_MODEL = "gemini-3.5-flash-lite";
+  const AI_TIER2_MODEL = "gemini-3.8-flash";
   AI.key = ""; AI.groqKey = ""; AI.lastTier = ""; AI.model = ""; AI.history = []; AI.busy = false;
 
   function aiStoreGet(k){ try{ return localStorage.getItem(k) || ""; }catch(e){ return ""; } }
@@ -9564,12 +9598,12 @@
     if(att) parts.unshift({ inline_data:{ mime_type:att.mime, data:att.data } });   // image / PDF / text goes first, then the question
     contents.push({ role:"user", parts:parts });
     const sys = rawMode ? "Reply briefly." : aiSystemPrompt() + (att ? "\n\nATTACHMENT: the user attached a file (" + att.name + "). Read it carefully: it is probably bass tab, a chord chart, a scale diagram or sheet music. Explain what it shows in plain language, then demonstrate the main idea on the fretboard with a <BOARD_CMD> block." : "");
-    return { contents:contents, systemInstruction:{ parts:[{ text:sys }] }, generationConfig:{ maxOutputTokens:4096 } };   // clean standard payload
+    return { contents:contents, systemInstruction:{ parts:[{ text:sys }] }, generationConfig:{ maxOutputTokens:2500 } };   // clean standard payload
   }
   async function aiGemini(q, rawMode, models){
     const key = AI.key;
-    const preferred = AI.model || GEMINI_MODELS[0];
-    const chain = (models && models.length) ? models : [preferred].concat(GEMINI_MODELS.filter(function(m){ return m !== preferred; }));
+    const preferred = AI_TIER1_MODEL;
+    const chain = (models && models.length) ? models : [AI_TIER1_MODEL, AI_TIER2_MODEL];
     const body = aiGeminiBody(q, rawMode);
     let last = null;
     for(let m = 0; m < chain.length; m++){
@@ -9583,13 +9617,13 @@
           body:JSON.stringify(body),
           signal:ctrl.signal
         });
-      }catch(err){ clearTimeout(to); throw err; }
+      }catch(err){ clearTimeout(to); last = err; continue; }
       clearTimeout(to);
       if(!resp.ok){
         let msg = resp.statusText;
         try{ const j = await resp.json(); if(j && j.error && j.error.message) msg = j.error.message; }catch(e){}
         last = { status:resp.status, msg:msg };
-        if(resp.status === 404 || resp.status === 429 || resp.status === 503) continue;
+        if(resp.status === 400 || resp.status === 404 || resp.status === 429 || resp.status === 500 || resp.status === 503) continue;
         throw last;
       }
       const data = await resp.json();
@@ -9608,8 +9642,8 @@
   }
   async function aiGeminiStream(q, onText, models){
     const key = AI.key;
-    const preferred = AI.model || GEMINI_MODELS[0];
-    const chain = (models && models.length) ? models : [preferred].concat(GEMINI_MODELS.filter(function(m){ return m !== preferred; }));
+    const preferred = AI_TIER1_MODEL;
+    const chain = (models && models.length) ? models : [AI_TIER1_MODEL, AI_TIER2_MODEL];
     const body = JSON.stringify(aiGeminiBody(q, false));
     let last = null;
     for(let m = 0; m < chain.length; m++){
@@ -9623,13 +9657,13 @@
           body:body,
           signal:ctrl.signal
         });
-      }catch(err){ clearTimeout(to); throw err; }
+      }catch(err){ clearTimeout(to); last = err; continue; }
       if(!resp.ok){
         clearTimeout(to);
         let msg = resp.statusText;
         try{ const j = await resp.json(); if(j && j.error && j.error.message) msg = j.error.message; }catch(e){}
         last = { status:resp.status, msg:msg };
-        if(resp.status === 404 || resp.status === 429 || resp.status === 503) continue;
+        if(resp.status === 400 || resp.status === 404 || resp.status === 429 || resp.status === 500 || resp.status === 503) continue;
         throw last;
       }
       if(!resp.body || !resp.body.getReader){
@@ -9713,7 +9747,7 @@
     return id;
   }
   async function aiGroqStream(q, onText, key, rawMode){
-    const picked = await aiGroqPickModel(key);
+    const picked = "openai/gpt-oss-120b";
     const go = async function(model){
       try{
         return await aiGroqStreamWith(q, onText, key, rawMode, model, false);
@@ -9734,26 +9768,28 @@
       throw err;
     }
   }
-  // compact system prompt for Groq (under ~2,500 characters): only the BOARD_CMD schema, chords / drums and the 24-32 step groove rules
+  // Expanded Groq system prompt: complete explanation plus structured fretboard diagrams.
   function aiGroqSystemPrompt(){
     const strings = activeStrings().map(function(d){ return d.name; }).join(" ");
     return [
-      "You are Professor Bass, a bass teacher inside a fretboard app. Reply in plain spoken prose, at most 80 words, no markdown. Master key: " + state.key + ". Strings: " + strings + ".",
-      "You are Professor BAI, an encyclopedic open-ended bass virtuoso and visual teacher. Map any musical concept, genre, theory, technique, transcription or uploaded material into useful fretboard sequences, directional arrows, shape boxes and backing tracks; do not limit answers to preset lessons.",
-      "Optional visual schema: arrows:[{from:{s:0,f:3},to:{s:0,f:5},color:\"#38bdf8\",label:\"Shift\"}], boxes:[{s1:0,f1:3,s2:3,f2:5,color:\"#f59e0b\",label:\"Shape 1\"}]. Coordinates use active string indices and frets.",
-      "When asked to show, play, jam, solo, fill, groove, scale or chord, END the reply with <BOARD_CMD>[...]</BOARD_CMD> holding ONLY valid JSON.",
-      "Schema: {\"action\":\"sequence\",\"key\":\"C\",\"bpm\":100,\"drums\":true,\"chords\":[{\"chord\":\"Dm9\",\"beat\":0,\"duration\":4},{\"chord\":\"G13\",\"beat\":4,\"duration\":4}],\"steps\":[{\"string\":1,\"fret\":5,\"beats\":0.75},{\"string\":2,\"fret\":3,\"beats\":0.5,\"link\":\"h\"},{\"string\":3,\"fret\":7,\"beats\":0.5,\"tech\":\"pop\"}]}",
-      "String index 0 = lowest string (4-string E A D G = 0..3; 5-string B E A D G = 0..4). Fret 0-24. \"key\" = tonic of the tune (it sets the master root key). \"beats\" = step length (0.25, 0.5, 0.75 or 1), 4 beats per bar. Optional per step: \"link\" h (hammer-on), p (pull-off), / (slide up) on the SAME string as the previous step; \"tech\" slap or pop; \"ghost\":true; \"rest\":true.",
-      "Other actions: {\"action\":\"set_key\",\"key\":\"D\"}, {\"action\":\"highlight_notes\",\"key\":\"F\",\"chord_type\":\"min7\",\"notes\":[0,3,7,10]}, {\"action\":\"clear_neck\"}.",
-      "BAND: when asked to jam, solo or play fills/grooves over chords or with piano, keys or drums, add \"chords\" (symbols such as Dm9, G13, Cmaj9, A7b13, Bbm7; beat and duration counted in beats) and \"drums\":true.",
-      "GROOVE RULE: every groove, riff, fill, solo or progression has 24 to 32 steps (never fewer) over at least 4 fret regions and several strings. Follow the chords bar by bar: root on the downbeat, chord tones, slides, hammer-ons, octave pops, and a chromatic fill into the next bar. Step beats must add up to the total beats of the chords. Scales: 8-16 steps. Always close the tag; never explain the JSON."
-    ].join("\n");
+      "You are Professor BAI, an expert bass guitarist, music theorist and patient visual teacher embedded in a bass fretboard workstation. Current master key: " + state.key + ". Active strings, lowest to highest: " + strings + ". Use plain, accurate musical language and teach rather than merely announce results.",
+      "VISIBLE EXPLANATION: Every musical answer must give a thorough, clear explanation in the chat bubble. Explain the musical idea, note names/degrees/intervals, why the chosen positions work, how the notes relate to harmony or rhythm, and a practical way to hear or practise it. Organize the explanation into 2-5 useful short paragraphs. Never give a one-liner such as 'Here it is on the neck'.",
+      "BOARD COMMAND: End every musical or theory reply with one complete, valid <BOARD_CMD>[JSON]</BOARD_CMD> block. The tag must be the final content in the response. The JSON must include key, bpm, drums, chords and a complete steps array of 16-24 playable note objects. This applies to scales, modes, intervals, chords, harmony, fretboard theory, techniques, riffs, fills, grooves, progressions and musical explanations. A non-musical conversation may omit the tag.",
+      "BASE SCHEMA: {\"action\":\"sequence\",\"key\":\"C\",\"bpm\":100,\"drums\":false,\"chords\":[],\"steps\":[{\"string\":0,\"fret\":8,\"beats\":0.5,\"label\":\"C\",\"finger\":1},{\"string\":1,\"fret\":5,\"beats\":0.5,\"label\":\"E\",\"finger\":3}]}. Always include every required field even when drums are false or chords are empty.",
+      "STRING/FRET RULES: String index 0 is the lowest active string. Four-string E-A-D-G tuning uses indices 0-3; five-string B-E-A-D-G uses 0-4. Fret values are integers 0-24. Use the actual active tuning " + strings + ". key is the tonic; bpm is a number from 50 to 180. Each step should contain string, fret and beats; beats should normally be 0.25, 0.5, 0.75 or 1. Optional fields include label, finger, link, tech, ghost and rest.",
+      "STEP QUALITY: Supply 16-24 meaningful note events, not placeholders or repetitions used merely to reach the count. Use multiple strings and sensible hand positions. For a scale or mode, show its characteristic degrees and sound; for intervals, show the interval on the neck; for chords, show chord tones and useful voicings; for progressions, follow the harmony. Keep hammer-ons (link h), pull-offs (link p) and slides (link /) on the same string as the previous played note.",
+      "HARMONY/BACKING: chords is an array of objects such as {\"chord\":\"Dm9\",\"beat\":0,\"duration\":4}; beat and duration are measured in quarter-note beats. Use real chord symbols and align each chord to the relevant steps. drums must always be a boolean. If the user asks for piano, keys, drums, backing band, jam or groove, set drums:true where appropriate and include the matching chords array. Set bpm to a musically suitable tempo.",
+      "DIAGRAMS: Whenever showing a shape, chord/scale box, shift, interval jump, octave relationship, harmonic symmetry, position connection or note movement, include arrows and/or boxes in the same BOARD_CMD object. Arrow schema: {\"from\":{\"s\":0,\"f\":3},\"to\":{\"s\":1,\"f\":5},\"color\":\"#38bdf8\",\"label\":\"shift\"}. Box schema: {\"s1\":0,\"f1\":3,\"s2\":3,\"f2\":5,\"color\":\"#f59e0b\",\"label\":\"shape\"}. Coordinates are active string indices and fret numbers. Use accurate bounds and readable labels; arrows show direction and boxes enclose the actual shape.",
+      "GROOVE WRITING: For grooves, riffs, fills, solos and progressions, use the full 16-24-step budget to create a coherent musical phrase. Put roots on strong beats, use chord tones, passing notes, rhythmic variation, tasteful slides, hammer-ons, pull-offs, ghost notes and occasional octave pops. Align bass notes with chord changes and make the final phrase resolve naturally. Do not claim a chord or scale tone that the fret/string coordinates do not produce.",
+      "OUTPUT FORMAT: First write the complete teaching explanation in ordinary prose. Then append the complete BOARD_CMD block. JSON must use double-quoted keys/strings, numeric string/fret/beat values, valid arrays and objects, no comments, no trailing commas and no markdown fences inside the tag. Do not place explanation inside the JSON. Close both the JSON and BOARD_CMD tag.",
+      "Current active tuning, lowest to highest: " + strings + ". Current master key: " + state.key + ". Be specific, encouraging and musically useful."
+    ].join("\n\n");
   }
   async function aiGroqStreamWith(q, onText, key, rawMode, model, noReasoning){
     const msgs = [{ role:"system", content: rawMode ? "Reply briefly." : aiGroqSystemPrompt() }];
     if(!rawMode) AI.history.slice(-2).forEach(function(h){ msgs.push({ role: h.role === "model" ? "assistant" : "user", content:String(h.text).slice(0, 700) }); });
     msgs.push({ role:"user", content:String(q).slice(0, 1500) });
-    const payload = { model:model, messages:msgs, stream:true, temperature:0.6, max_tokens:1500 };   // compact prompt + last 2 turns + 1500 completion tokens: well under Groq's free-tier per-minute limit, still room for a 24-32 step groove
+    const payload = { model:model, messages:msgs, stream:true, temperature:0.6, max_tokens:2200 };   // compact prompt + last 2 turns + 1500 completion tokens: well under Groq's free-tier per-minute limit, still room for a 24-32 step groove
     if(!noReasoning){
       if(/qwen3/i.test(model)) payload.reasoning_effort = "none";        // no hidden thinking on reasoning models that support it
       else if(/gpt-oss/i.test(model)) payload.reasoning_effort = "low";   // gpt-oss cannot switch thinking off entirely
@@ -9817,14 +9853,13 @@
     if(!full.trim()) throw aiGroqErr(null, { status:0, empty:true, msg:"empty" });
     return { text:aiStripThink(full).trim(), model:model };
   }
-  /* ---------- The cascade: Gemini 3.8 Flash -> Groq -> (caller falls back to the offline engine) ---------- */
+  /* ---------- The cascade: Gemini 3.5 Flash Lite -> Gemini 3.8 Flash -> Groq -> offline engine ---------- */
   async function aiCascade(q, onText){
     const att = AI.sendAttach;
     const reasons = [];
     if(AI.key){
-      const t1 = AI.model || AI_TIER1_MODEL;
       try{
-        const g = await aiGeminiStream(q, onText, [t1]);
+        const g = await aiGeminiStream(q, onText, [AI_TIER1_MODEL, AI_TIER2_MODEL]);
         g.tier = "gemini";
         g.detail = "Answered by " + g.model;
         return g;
@@ -10244,7 +10279,7 @@
       return { key:root, pivot:true };
     }
     if(act === "clear_neck" || act === "clear"){
-      return { overlay:[] };
+      return { clearNeck:true };
     }
     return null;
   }
@@ -10441,7 +10476,7 @@
     const map = {
       gemini:["Gemini", "ok"], groq:["Groq", "ok"], thinking:["Thinking\u2026", "ok"], local:["Offline engine", "warn"], offline:["Offline", "warn"], error:["Fallback", "warn"]
     };
-    const titles = { gemini:"Answers come from Google Gemini 3.8 Flash (Tier 1)", groq:"Answers come from Groq (Tier 2)" };
+    const titles = { gemini:"Answers come from Google Gemini (Tier 1 or Tier 2)", groq:"Answers come from Groq (Tier 3)" };
     const m = map[kind] || map.local;
     pill.textContent = "\u25CF " + m[0];
     pill.className = "ai-pill " + m[1];
@@ -10539,10 +10574,9 @@
         const prevKey = AI.key, prevModel = AI.model;
         AI.key = k; AI.model = modelIn.value.trim();
         try{
-          const tm = AI.model || AI_TIER1_MODEL;
-          const g = await aiGemini("Reply with the single word OK.", true, [tm]);
+          const g = await aiGemini("Reply with the single word OK.", true, [AI_TIER1_MODEL, AI_TIER2_MODEL]);
           out.push("Gemini connected: " + g.model + " replied \u201C" + g.text.slice(0, 30) + "\u201D.");
-        }catch(err){ bad = true; out.push("Gemini test failed (" + (AI.model || AI_TIER1_MODEL) + "): " + aiErrorDetail(err)); }
+        }catch(err){ bad = true; out.push("Gemini test failed (" + AI_TIER1_MODEL + " then " + AI_TIER2_MODEL + "): " + aiErrorDetail(err)); }
         AI.key = prevKey; AI.model = prevModel;
       }
       if(d.length >= 20){
@@ -10854,9 +10888,8 @@
         if(items.length && items[0].type && items[0].type.indexOf("image/") === 0){ e.preventDefault(); aiAttachFile(items[0]); }
       });
     })();
-    document.getElementById("aiInput").addEventListener("keydown", function(e){
-      if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); aiSend(); }
-    });
+    /* Chat input is deliberately manual-send only: Enter inserts a newline and paste never submits.
+       The explicit Send button is the only keyboard-independent submission control. */
     document.getElementById("aiClearHl").addEventListener("click", function(){ aiStopSeq(); aiClearOverlay(); });
     document.getElementById("aiStopBtn").addEventListener("click", function(){
       aiStopSeq(); aiStopSpeech(); stopLearn(); stopPlayback();
