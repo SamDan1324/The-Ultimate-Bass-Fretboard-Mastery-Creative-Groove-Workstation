@@ -1738,6 +1738,10 @@
   .ai-speed{padding:6px 10px; font-size:11.5px;}
   .ai-dock .ai-speed{padding:6px 8px; font-size:11px;}
   .ai-float-bar .ai-speed{padding:9px 14px; font-size:12.5px;}
+  body.bai-shapes-off #bai-vector-overlay{display:none !important;}   /* Shapes: OFF hides every box, box label and arrow; the diagram data stays, so ON restores it */
+  .ai-tg.ai-shapes{white-space:nowrap;}
+  .ai-dock .ai-shapes{padding:6px 8px; font-size:11px;}
+  .ai-float-bar .ai-shapes{padding:9px 14px; font-size:12.5px;}
   .ai-tg.ai-speed.slow{background:linear-gradient(180deg,#ffd45e,#d9a21b) !important; color:#2a1d00 !important; border-color:transparent !important; box-shadow:0 0 12px rgba(255,212,94,0.45);}
   /* the Professor BAI transport bars only ever exist inside Fullscreen Focus View */
   body:not(.immersive-mode) .ai-float-bar, body:not(.immersive-mode) .ai-dock{display:none !important;}
@@ -1790,12 +1794,14 @@
   <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop</button>
   <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; Bass</button>
   <button class="ai-tg ai-speed" data-ai-speed title="Slow-motion practice speed: cycles 1.0x, 0.75x, 0.5x (applies to bass, piano and drums)" aria-pressed="false">Speed: 1.0x</button>
+  <button class="ai-tg ai-shapes on" data-ai-shapes title="Show or hide the coloured boxes and arrows drawn on the neck (the diagram is kept, so turning it back on restores it)" aria-pressed="true">&#128208; Shapes: ON</button>
   <button id="aiDockStop" title="Stop playback" aria-label="Stop">&#9632;</button>
 </div>
 <div class="ai-float-bar" id="aiFloatBar">
   <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop: OFF</button>
   <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; AI Bass: ON</button>
   <button class="ai-tg ai-speed" data-ai-speed title="Slow-motion practice speed: cycles 1.0x, 0.75x, 0.5x (applies to bass, piano and drums)" aria-pressed="false">Speed: 1.0x</button>
+  <button class="ai-tg ai-shapes on" data-ai-shapes title="Show or hide the coloured boxes and arrows drawn on the neck (the diagram is kept, so turning it back on restores it)" aria-pressed="true">&#128208; Shapes: ON</button>
   <button class="ai-replay-pill" id="aiReplayPill" title="Replay the last AI fretboard demonstration">&#9654; Replay Groove</button>
   <button id="aiFloatStop" title="Stop playback" aria-label="Stop">&#9632;</button>
 </div>
@@ -1813,6 +1819,7 @@
       <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop: OFF</button>
       <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; AI Bass: ON</button>
       <button class="ai-tg ai-speed" data-ai-speed title="Slow-motion practice speed: cycles 1.0x, 0.75x, 0.5x (applies to bass, piano and drums)" aria-pressed="false">Speed: 1.0x</button>
+  <button class="ai-tg ai-shapes on" data-ai-shapes title="Show or hide the coloured boxes and arrows drawn on the neck (the diagram is kept, so turning it back on restores it)" aria-pressed="true">&#128208; Shapes: ON</button>
       <button id="aiStopBtn" title="Stop speech, playback and lessons">&#9632; Stop</button>
       <button id="aiSizeBtn" title="Make the panel taller or shorter">&#8661; Size</button>
       <button id="aiHideBtn" title="Collapse to a thin bar so the fretboard is clear">&#9660; Hide</button>
@@ -9518,6 +9525,21 @@
     try{ localStorage.setItem("aiSpeed", String(AI.speed)); }catch(e){}
     aiSyncSpeed();
   }
+  /* ---------- Shapes ON / OFF: show or hide the SVG boxes + arrows layer (#bai-vector-overlay) without clearing it ---------- */
+  function aiShapesOn(){ return !document.body.classList.contains("bai-shapes-off"); }
+  function aiSyncShapes(){
+    const on = aiShapesOn();
+    document.querySelectorAll("[data-ai-shapes]").forEach(function(b){
+      b.textContent = "\uD83D\uDCD0 Shapes: " + (on ? "ON" : "OFF");
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+  function aiSetShapes(on){
+    document.body.classList.toggle("bai-shapes-off", !on);
+    try{ localStorage.setItem("aiShapes", on ? "1" : "0"); }catch(e){}
+    aiSyncShapes();
+  }
   function aiCycleSpeed(){ aiSetSpeed(AI_SPEEDS[(AI_SPEEDS.indexOf(AI.speed || 1) + 1) % AI_SPEEDS.length]); }
   // Returns a time-stretched COPY of the spec: every step offset, note duration, strum, glide, chord and drum timing is stretched
   // by 1/speed (0.5x = twice as long). The original spec is untouched so Replay can run at any speed.
@@ -10112,11 +10134,23 @@
   function aiStoreDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
 
   /* ---------- Gemini system prompt: BOARD_CMD tags ---------- */
+  // Exact fret-to-pitch table for the ACTIVE tuning (frets 0-12; fret f+12 is the same note one octave higher), so the model never has to guess.
+  function aiPitchTable(){
+    const SH = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+    const st = activeStrings();
+    const rows = st.map(function(d, i){
+      const notes = [];
+      for(let f = 0; f <= 12; f++) notes.push(f + "=" + SH[(d.noteIndex + f) % 12]);
+      return "string " + i + " (open " + d.name + "): " + notes.join(" ");
+    });
+    return rows.join("\n");
+  }
   function aiNeckNote(){
     const st = activeStrings(), names = st.map(function(d){ return d.name; });
     return "\n\nCURRENT NECK: " + st.length + "-string bass. String indices, lowest to highest: " + names.map(function(n, i){ return i + "=" + n; }).join(", ") +
       ". Use exactly these indices for steps, overlay, arrows {from:{s,f},to:{s,f}} and boxes {s1,f1,s2,f2}. " +
-      (st.length === 5 ? "Index 0 is the low B string, so every other index is shifted up by one versus a 4-string bass." : "This is a 4-string bass: there is no low B string.");
+      (st.length === 5 ? "Index 0 is the low B string, so every other index is shifted up by one versus a 4-string bass." : "This is a 4-string bass: there is no low B string.") +
+      "\n\nEXACT FRET-TO-PITCH TABLE for this neck (sharp spellings; fret 12 is the open string's octave, so fret f+12 is the same note as fret f, up to fret 24). Look every (s, f) up in this table before you write it; never work a pitch out from memory:\n" + aiPitchTable();
   }
   function aiSystemPrompt(){ return aiSystemPromptBase() + aiNeckNote(); }
   function aiSystemPromptBase(){
@@ -10153,6 +10187,7 @@
     return [
       "You are Professor Bass, a world-class bass guitar teacher embedded in an interactive 24-fret bass fretboard workstation. Answer every bass and music-theory question accurately, warmly and concisely. Your words are read aloud by a text-to-speech voice, so write plain spoken prose of at most about 150 words: no markdown headings, no tables, no emoji, no bullet symbols.",
       "CURRENT APP STATE: master key " + state.key + ", notation " + (state.notation === "solfa" ? "Tonic Solfa" : "Alphabet") + ", strings " + strings + ", 24 frets.",
+      "FRET-MATH SELF-CHECK (MANDATORY, pitch accuracy must be 100%): every (s, f) you output, in steps, overlay, boxes and arrows, must be the exact pitch you name in its label. In standard 4-string tuning the open strings sit at E = 0, A = +5, D = +10, G = +15 semitones above the low E (string 0 E = 0, string 1 A = +5, string 2 D = +10, string 3 G = +15); on a 5-string neck the low B is -5 and every other string keeps its offset, so use the CURRENT NECK indices. The pitch of any coordinate is: pitch class = (open-string pitch class + fret) mod 12, with C = 0, C# = 1, D = 2, D# = 3, E = 4, F = 5, F# = 6, G = 7, G# = 8, A = 9, A# = 10, B = 11 (open E = 4, A = 9, D = 2, G = 7). The same note is 5 frets higher on the next lower string (a perfect 4th) and 12 frets higher on the same string (an octave). Before writing <BOARD_CMD>, silently verify EVERY coordinate in this order: (1) decide the target note name; (2) compute (open-string pitch class + fret) mod 12 and compare it with the target; (3) if it does not match, move the fret and recompute; (4) confirm every scale degree is the right letter name with the right sharp or flat. Worked checks you must reproduce exactly: G major is G A B C D E F#, and its C is on the A string at fret 3 (A + 3 = C), NEVER C# at A fret 4; F# is on the E string at fret 2, on the D string at fret 4 and on the G string at fret 11; finding C on the G string means fret 5 and fret 17 (G + 5 = C, G + 17 = C, 12 frets apart), and the other Cs are D string fret 10, A string fret 3 and fret 15, E string fret 8 and fret 20. For a single-note landmark drill (find every C, every G and so on) list one coordinate per string per octave, mark the root, and check each against the table. If a coordinate fails the check, correct it; never output a note you have not verified, and never let a label disagree with the fret it sits on.",
       "HOUSE KNOWLEDGE: (1) Tonic Solfa dual labels: the minor 3rd is Ri / Mo and the flat 7th is Li / Toh; enharmonic boundaries Mi# = Fa, Fa-flat = Mi, Ti# = Do, Do-flat = Ti. (2) String geometry: neighbouring strings are a perfect 4th apart, so the same pitch is 5 frets away on the next string; the octave is one string up and 7 frets back, or two strings up and 2 frets over. (3) The 3-fret pivot: the relative minor root sits exactly 3 frets back on the same string from the major root. (4) Seven interlocking mode shapes: Box 1 Ionian, 2 Dorian, 3 Phrygian, 4 Lydian, 5 Mixolydian, 6 Aeolian, 7 Locrian. (5) Tab reading: bottom line = lowest, thickest string; h hammer-on, p pull-off, / slide up, backslash slide down, X ghost note, S slap, P pop.",
       "You are Professor BAI: an encyclopedic, open-ended bass virtuoso, arranger, theorist and visual teacher. Handle any musical concept, theory, genre, technique, composition, transcription, or uploaded material the user provides. Translate it into playable bass-fretboard sequences, clear directional movement, shape boundaries, and suitable backing tracks. Explain unfamiliar ideas accurately rather than forcing them into a preset lesson.",
       "VISUAL MAPPING EXTENSIONS: any BOARD_CMD object may include optional arrows:[{from:{s:0,f:3},to:{s:0,f:5},color:\"#38bdf8\",label:\"Shift\"}] and boxes:[{s1:0,f1:3,s2:3,f2:5,color:\"#f59e0b\",label:\"Shape 1\"}]. String indices follow the active tuning. Use arrows for movement and boxes to enclose scale, chord, fingering or genre-specific shapes.",
@@ -10353,6 +10388,7 @@
       "BOARD COMMAND: End every musical or theory reply with one complete, valid <BOARD_CMD>[JSON]</BOARD_CMD> block. The tag must be the final content in the response. The JSON must include key, bpm, drums, chords and a complete steps array of 16-24 playable note objects. This applies to scales, modes, intervals, chords, harmony, fretboard theory, techniques, riffs, fills, grooves, progressions and musical explanations. A non-musical conversation may omit the tag.",
       "BASE SCHEMA: {\"action\":\"sequence\",\"key\":\"C\",\"bpm\":100,\"drums\":false,\"chords\":[],\"steps\":[{\"string\":0,\"fret\":8,\"beats\":0.5,\"label\":\"C\",\"finger\":1},{\"string\":1,\"fret\":5,\"beats\":0.5,\"label\":\"E\",\"finger\":3}]}. Always include every required field even when drums are false or chords are empty.",
       "STRING/FRET RULES: String index 0 is the lowest active string. Four-string E-A-D-G tuning uses indices 0-3; five-string B-E-A-D-G uses 0-4. Fret values are integers 0-24. Use the actual active tuning " + strings + ". key is the tonic; bpm is a number from 50 to 180. Each step should contain string, fret and beats; beats should normally be 0.25, 0.5, 0.75 or 1. Optional fields include label, finger, link, tech, ghost and rest.",
+      "FRET-MATH SELF-CHECK (MANDATORY, pitch accuracy must be 100%): every (s, f) you output, in steps, overlay, boxes and arrows, must be the exact pitch you name in its label. In standard 4-string tuning the open strings sit at E = 0, A = +5, D = +10, G = +15 semitones above the low E (string 0 E = 0, string 1 A = +5, string 2 D = +10, string 3 G = +15); on a 5-string neck the low B is -5 and every other string keeps its offset, so use the CURRENT NECK indices. The pitch of any coordinate is: pitch class = (open-string pitch class + fret) mod 12, with C = 0, C# = 1, D = 2, D# = 3, E = 4, F = 5, F# = 6, G = 7, G# = 8, A = 9, A# = 10, B = 11 (open E = 4, A = 9, D = 2, G = 7). The same note is 5 frets higher on the next lower string (a perfect 4th) and 12 frets higher on the same string (an octave). Before writing <BOARD_CMD>, silently verify EVERY coordinate in this order: (1) decide the target note name; (2) compute (open-string pitch class + fret) mod 12 and compare it with the target; (3) if it does not match, move the fret and recompute; (4) confirm every scale degree is the right letter name with the right sharp or flat. Worked checks you must reproduce exactly: G major is G A B C D E F#, and its C is on the A string at fret 3 (A + 3 = C), NEVER C# at A fret 4; F# is on the E string at fret 2, on the D string at fret 4 and on the G string at fret 11; finding C on the G string means fret 5 and fret 17 (G + 5 = C, G + 17 = C, 12 frets apart), and the other Cs are D string fret 10, A string fret 3 and fret 15, E string fret 8 and fret 20. For a single-note landmark drill (find every C, every G and so on) list one coordinate per string per octave, mark the root, and check each against the table. If a coordinate fails the check, correct it; never output a note you have not verified, and never let a label disagree with the fret it sits on.",
       "STEP QUALITY: Supply 16-24 meaningful note events, not placeholders or repetitions used merely to reach the count. Use multiple strings and sensible hand positions. For a scale or mode, show its characteristic degrees and sound; for intervals, show the interval on the neck; for chords, show chord tones and useful voicings; for progressions, follow the harmony. Keep hammer-ons (link h), pull-offs (link p) and slides (link /) on the same string as the previous played note.",
       "HARMONY/BACKING: chords is an array of objects such as {\"chord\":\"Dm9\",\"beat\":0,\"duration\":4}; beat and duration are measured in quarter-note beats. Use real chord symbols and align each chord to the relevant steps. drums must always be a boolean. If the user asks for piano, keys, drums, backing band, jam or groove, set drums:true where appropriate and include the matching chords array. Set bpm to a musically suitable tempo.",
       "DIAGRAMS: Whenever showing a shape, chord/scale box, shift, interval jump, octave relationship, harmonic symmetry, position connection or note movement, include BOTH boxes and arrows in the same BOARD_CMD object. Arrow schema: {\"from\":{\"s\":0,\"f\":3},\"to\":{\"s\":1,\"f\":5},\"color\":\"#38bdf8\",\"label\":\"shift\"}. Box schema: {\"s1\":0,\"f1\":3,\"s2\":3,\"f2\":5,\"color\":\"#f59e0b\",\"label\":\"shape\"}. Coordinates are active string indices and fret numbers. Use accurate bounds and readable labels; arrows show direction and boxes enclose the actual shape.",
@@ -11477,6 +11513,7 @@
       b.setAttribute("aria-pressed", AI.bassMute ? "true" : "false");
     });
     aiSyncSpeed();
+    aiSyncShapes();
   }
   function aiSetLoop(on){
     AI.loop = !!on;
@@ -11501,6 +11538,9 @@
     document.querySelectorAll("[data-ai-bass]").forEach(function(b){ b.addEventListener("click", function(){ aiSetBassMute(!AI.bassMute); }); });
     try{ const sp = parseFloat(localStorage.getItem("aiSpeed")); AI.speed = AI_SPEEDS.indexOf(sp) >= 0 ? sp : 1; }catch(e){ AI.speed = 1; }
     document.querySelectorAll("[data-ai-speed]").forEach(function(b){ b.addEventListener("click", function(){ aiCycleSpeed(); }); });
+    try{ if(localStorage.getItem("aiShapes") === "0") document.body.classList.add("bai-shapes-off"); }catch(e){}
+    document.querySelectorAll("[data-ai-shapes]").forEach(function(b){ b.addEventListener("click", function(){ aiSetShapes(!aiShapesOn()); }); });
+    aiSyncShapes();
     const fs = document.getElementById("aiFloatStop");
     if(fs) fs.addEventListener("click", function(){ aiStopSeq(); aiStopSpeech(); });
     if(AI.bassMute){ AI.muteFreestyle = !FREESTYLE.on; if(!FREESTYLE.on) setFreestyle(true); }
