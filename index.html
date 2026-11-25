@@ -1480,6 +1480,8 @@
   body.immersive-mode.ai-min .ai-drawer{z-index:99999 !important;}
   #aiDock{position:fixed !important; z-index:99999 !important;}
   #aiFloatBar{z-index:99999 !important;}
+  #bai-vector-overlay{z-index:45 !important;pointer-events:none !important;}
+  body:not(.ai-min):not(.ai-open):not(.ai-split) #aiFloatBar.on{display:none !important;}
   /* Opaque viewport-pinned fretboard while Professor BAI is open or minimized. */
   body.ai-open #immersiveContainer,
   body.ai-split #immersiveContainer,
@@ -1754,12 +1756,14 @@
   <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop</button>
   <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; Bass</button>
   <button id="aiDockStop" title="Stop playback" aria-label="Stop">&#9632;</button>
+  <button id="aiDockSpeed" class="ai-tg" title="Playback speed">Speed: 1.0x</button>
 </div>
 <div class="ai-float-bar" id="aiFloatBar">
   <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop: OFF</button>
   <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; AI Bass: ON</button>
   <button class="ai-replay-pill" id="aiReplayPill" title="Replay the last AI fretboard demonstration">&#9654; Replay Groove</button>
   <button id="aiFloatStop" title="Stop playback" aria-label="Stop">&#9632;</button>
+  <button id="aiFloatSpeed" class="ai-tg" title="Playback speed">Speed: 1.0x</button>
 </div>
 <button class="mode-tags-btn" id="modeTagsBtn" title="Show or hide the COPY / PASTE banners">Tags: ON</button>
 <aside class="ai-drawer" id="aiDrawer" aria-label="Professor BAI assistant">
@@ -4890,7 +4894,8 @@
       svg.setAttribute("class", "vector-rig");
       svg.setAttribute("aria-hidden", "true");
       inner.appendChild(svg);
-    }
+    } else if(svg.parentElement !== inner){ inner.appendChild(svg); }
+    svg.style.cssText = "position:absolute;left:0;top:0;z-index:45;pointer-events:none;width:100%;height:100%;overflow:visible;";
     while(svg.firstChild) svg.removeChild(svg.firstChild);
     const V = state.vectors;
     const svgW = parseFloat(inner.style.width) || inner.clientWidth || 0;
@@ -9057,8 +9062,12 @@
   /* ---- shared clock for the bass, the electric piano and the drums ---- */
   function aiAudioReady(){ return !!(state.audioEnabled && state.audioInitialized && audioCtx); }
   function aiClockNow(){ return aiAudioReady() ? audioCtx.currentTime : performance.now() / 1000; }
+  let AI_SPEED = 1.0;
+  function aiSpeedLabel(){ return "Speed: " + AI_SPEED.toFixed(2).replace(/0$/, "") + "x"; }
+  function aiCycleSpeed(){ AI_SPEED = AI_SPEED === 1 ? 0.75 : AI_SPEED === 0.75 ? 0.5 : 1; ["aiDockSpeed","aiFloatSpeed"].forEach(function(id){var b=document.getElementById(id);if(b)b.textContent=aiSpeedLabel();}); }
+  ["aiDockSpeed","aiFloatSpeed"].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener("click",aiCycleSpeed);});
   function aiTimer(fn, ms){
-    const id = setTimeout(function(){ const k = AI.timers.indexOf(id); if(k >= 0) AI.timers.splice(k, 1); fn(); }, Math.max(0, ms));
+    const id = setTimeout(function(){ const k = AI.timers.indexOf(id); if(k >= 0) AI.timers.splice(k, 1); fn(); }, Math.max(0, ms) / AI_SPEED);
     AI.timers.push(id);
     return id;
   }
@@ -11045,6 +11054,9 @@
     });
     document.getElementById("aiCloseBtn").addEventListener("click", function(){
       aiOpen(false);
+      const floatBar = document.getElementById("aiFloatBar"); if(floatBar){floatBar.classList.remove("on");floatBar.style.display="none";}
+      const dock = document.getElementById("aiDock"); if(dock){dock.classList.remove("on");dock.style.display="none";}
+      document.body.style.overflow = ""; aiSavedBodyOverflow = null;
       const drawer = document.getElementById("aiDrawer");
       drawer.classList.remove("collapsed","open");
       drawer.style.display = "";
