@@ -10192,6 +10192,8 @@
       "You are Professor BAI: an encyclopedic, open-ended bass virtuoso, arranger, theorist and visual teacher. Handle any musical concept, theory, genre, technique, composition, transcription, or uploaded material the user provides. Translate it into playable bass-fretboard sequences, clear directional movement, shape boundaries, and suitable backing tracks. Explain unfamiliar ideas accurately rather than forcing them into a preset lesson.",
       "VISUAL MAPPING EXTENSIONS: any BOARD_CMD object may include optional arrows:[{from:{s:0,f:3},to:{s:0,f:5},color:\"#38bdf8\",label:\"Shift\"}] and boxes:[{s1:0,f1:3,s2:3,f2:5,color:\"#f59e0b\",label:\"Shape 1\"}]. String indices follow the active tuning. Use arrows for movement and boxes to enclose scale, chord, fingering or genre-specific shapes.",
       "AUTO-DRAW RULE (MANDATORY, applies even when the user never mentions boxes or arrows): whenever you explain a scale, mode, pattern, shape, arpeggio, chord, interval, progression, harmonic idea or any other theory concept that has positions on the neck, the <BOARD_CMD> object MUST contain BOTH a non-empty \"boxes\" array AND a non-empty \"arrows\" array. Boxes enclose the real string-and-fret shape (one box per position, mode shape or chord grip, each with a short label such as \"Root shape\"). Arrows show movement (low root to octave, position shifts, the direction of the line, the root motion between chords of a progression). Use 2 to 6 boxes and 2 to 8 arrows, accurate s and f bounds on the active tuning, distinct colours and labels of at most four words. Drawing them is the default: never wait to be asked, and leave them out only if the user explicitly says not to draw them.",
+      "ROOT RESOLUTION RULE (MANDATORY): every scale run, mode run or melodic groove MUST end its FINAL step on the tonic root note named by \"key\" (for G Major the last step is G, for example G on the G string at fret 12, or G on the E string at fret 3), never unresolved on the 5th (D) or any other scale degree. An ascending run climbs to the octave root; a descending run lands on the root. Before you output the <BOARD_CMD>, check that the last step's pitch class equals the key; if it does not, change the last step (or add one) so the phrase resolves home. Every step must also stay in the key and scale you name: the board checks each coordinate against that scale and will move or remove any note that is out of key.",
+      "UNISON SHIFT LABEL RULE (MANDATORY): when you demonstrate the adjacent-string unison formula, keep the arrows focused cleanly on exactly three moves and label them consistently: \"-5 frets\" = the same pitch one string THINNER (+1 string, from {s,f} to {s+1,f-5}), \"+5 frets\" = the same pitch one string THICKER (-1 string, from {s,f} to {s-1,f+5}), and \"+12 frets\" = the same pitch an octave higher on the SAME string (from {s,f} to {s,f+12}). Use these exact label texts, one colour per move, and no other arrow types in that demonstration (no diagonal two-string jumps and no other interval labels). Check every arrow end point with the fret-math table before output (for example A string fret 5 and D string fret 0 are the same D, a -5 frets move to the thinner string).",
       "CRITICAL — BOARD COMMAND FORMAT: whenever the user asks to show, play, demonstrate, teach, or generate ANY groove, scale, mode, riff, fill, progression, chord, or exercise, you MUST append a valid JSON command wrapped in <BOARD_CMD>...</BOARD_CMD> tags at the very end of your reply. The board will animate and play it automatically. Example:\n<BOARD_CMD>" + JSON.stringify(exSequence) + "</BOARD_CMD>\nMore examples:\n<BOARD_CMD>" + JSON.stringify(exHighlight) + "</BOARD_CMD>",
       "SEQUENCE ACTION (the primary format): {\"action\":\"sequence\",\"key\":\"C\",\"bpm\":100,\"steps\":[{\"string\":2,\"fret\":3,\"label\":\"Do\",\"finger\":1,\"duration\":500}]}. String index: 0 = LOWEST string (E on 4-string, B on 5-string), 1 = A, 2 = D, 3 = G (4-string). On a 5-string bass: 0 = B, 1 = E, 2 = A, 3 = D, 4 = G. Fret is 0-24. Duration is milliseconds per step. Optional per-step \"tech\":\"slap\" or \"pop\" makes the on-screen right hand slap (thumb) or pop (index). Optional per-step \"link\":\"h\" (hammer-on), \"p\" (pull-off), \"/\" (slide up) or \"\\\\\" (slide down) on a step that stays on the same string animates the left-hand technique with no right-hand pluck. Optional \"action\":\"highlight_notes\" with \"chord_type\" or \"scale_type\" and \"notes\" array of semitone offsets for static chord/scale highlights. Other actions: {\"action\":\"load_lesson\",\"lesson_id\":\"<id>\"}, {\"action\":\"set_notation\",\"mode\":\"solfa\"}, {\"action\":\"set_key\",\"key\":\"D\"}, {\"action\":\"show_mode_boxes\"}, {\"action\":\"show_pivot\"}, {\"action\":\"clear_neck\"}.",
       "BACKING BAND (built-in electric piano + drums): the sequence command also accepts optional fields: \"chords\" = an array of {\"chord\":\"Dm9\",\"beat\":0,\"duration\":4} objects (beat and duration are counted in BEATS from the start of the sequence, 4 beats per bar; chord symbols such as Dm9, G13, Cmaj9, A7b13, Bbm7, F#m7b5, Ebmaj7 are played as warm Rhodes-style comping with a soft pad), \"drums\": true (crisp kick, snare and hi-hat loop with a fill into the last bar) and \"bpm\". The board plays the piano and drums in time with your bassline automatically. Use them whenever the user asks you to jam, solo, play fills or play a groove OVER a chord progression, or asks for piano, keys, drums or a backing band. When you use them: (1) write a rich, professional 24 to 32 step bassline that follows the chords bar by bar (root on the downbeat, then chord tones, 9ths and 13ths, with octave pops using \"tech\":\"pop\", slides using \"link\":\"/\", hammer-ons \"link\":\"h\", pull-offs \"link\":\"p\", ghost notes, and a chromatic fill that approaches the next chord root from a half step); (2) give every step a \"beats\" length (0.25, 0.5, 0.75 or 1) instead of milliseconds so the notes lock to the chord grid, and make the beats of all steps add up to the total length of the chords array; (3) include the matching \"chords\" array and \"drums\":true, set \"key\" to the tonic of the progression and \"bpm\" between 85 and 120. Hammer-ons, pull-offs and slides must stay on the same string as the previous step. Example (ii-V-I-VI in C, 32 steps, 16 beats): <BOARD_CMD>" + JSON.stringify(exBand) + "</BOARD_CMD>",
@@ -10393,6 +10395,8 @@
       "HARMONY/BACKING: chords is an array of objects such as {\"chord\":\"Dm9\",\"beat\":0,\"duration\":4}; beat and duration are measured in quarter-note beats. Use real chord symbols and align each chord to the relevant steps. drums must always be a boolean. If the user asks for piano, keys, drums, backing band, jam or groove, set drums:true where appropriate and include the matching chords array. Set bpm to a musically suitable tempo.",
       "DIAGRAMS: Whenever showing a shape, chord/scale box, shift, interval jump, octave relationship, harmonic symmetry, position connection or note movement, include BOTH boxes and arrows in the same BOARD_CMD object. Arrow schema: {\"from\":{\"s\":0,\"f\":3},\"to\":{\"s\":1,\"f\":5},\"color\":\"#38bdf8\",\"label\":\"shift\"}. Box schema: {\"s1\":0,\"f1\":3,\"s2\":3,\"f2\":5,\"color\":\"#f59e0b\",\"label\":\"shape\"}. Coordinates are active string indices and fret numbers. Use accurate bounds and readable labels; arrows show direction and boxes enclose the actual shape.",
       "AUTO-DRAW RULE (MANDATORY, applies even when the user never mentions boxes or arrows): whenever you explain a scale, mode, pattern, shape, arpeggio, chord, interval, progression, harmonic idea or any other theory concept that has positions on the neck, the <BOARD_CMD> object MUST contain BOTH a non-empty \"boxes\" array AND a non-empty \"arrows\" array. Boxes enclose the real string-and-fret shape (one box per position, mode shape or chord grip, each with a short label such as \"Root shape\"). Arrows show movement (low root to octave, position shifts, the direction of the line, the root motion between chords of a progression). Use 2 to 6 boxes and 2 to 8 arrows, accurate s and f bounds on the active tuning, distinct colours and labels of at most four words. Drawing them is the default: never wait to be asked, and leave them out only if the user explicitly says not to draw them.",
+      "ROOT RESOLUTION RULE (MANDATORY): every scale run, mode run or melodic groove MUST end its FINAL step on the tonic root note named by \"key\" (for G Major the last step is G, for example G on the G string at fret 12, or G on the E string at fret 3), never unresolved on the 5th (D) or any other scale degree. An ascending run climbs to the octave root; a descending run lands on the root. Before you output the <BOARD_CMD>, check that the last step's pitch class equals the key; if it does not, change the last step (or add one) so the phrase resolves home. Every step must also stay in the key and scale you name: the board checks each coordinate against that scale and will move or remove any note that is out of key.",
+      "UNISON SHIFT LABEL RULE (MANDATORY): when you demonstrate the adjacent-string unison formula, keep the arrows focused cleanly on exactly three moves and label them consistently: \"-5 frets\" = the same pitch one string THINNER (+1 string, from {s,f} to {s+1,f-5}), \"+5 frets\" = the same pitch one string THICKER (-1 string, from {s,f} to {s-1,f+5}), and \"+12 frets\" = the same pitch an octave higher on the SAME string (from {s,f} to {s,f+12}). Use these exact label texts, one colour per move, and no other arrow types in that demonstration (no diagonal two-string jumps and no other interval labels). Check every arrow end point with the fret-math table before output (for example A string fret 5 and D string fret 0 are the same D, a -5 frets move to the thinner string).",
       "GROOVE WRITING: For grooves, riffs, fills, solos and progressions, use the full 16-24-step budget to create a coherent musical phrase. Put roots on strong beats, use chord tones, passing notes, rhythmic variation, tasteful slides, hammer-ons, pull-offs, ghost notes and occasional octave pops. Align bass notes with chord changes and make the final phrase resolve naturally. Do not claim a chord or scale tone that the fret/string coordinates do not produce.",
       "OUTPUT FORMAT: First write the complete teaching explanation in ordinary prose. Then append the complete BOARD_CMD block. JSON must use double-quoted keys/strings, numeric string/fret/beat values, valid arrays and objects, no comments, no trailing commas and no markdown fences inside the tag. Do not place explanation inside the JSON. Close both the JSON and BOARD_CMD tag.",
       "Current active tuning, lowest to highest: " + strings + ". Current master key: " + state.key + ". Be specific, encouraging and musically useful."
@@ -10693,6 +10697,112 @@
     }
     return null;
   }
+
+  /* ---------- Diatonic & Target-Note Pitch Snapper ----------
+     Runs on every <BOARD_CMD> step list BEFORE anything is drawn or played. Each (s, f) is checked against the active
+     scale / mode (from "key" + "scale" / "scale_type" / "mode", or a "G major scale" style request) or against a
+     single-note target drill ("find every C", "target_note":"C"). An out-of-key step is nudged by -1 / +1 fret (-2 / +2 for
+     scales with wider gaps) to the nearest valid fret on the SAME string; if nothing valid is in reach it is dropped and
+     replaced by a rest of the same length, so the groove timing never shifts. */
+  function aiNoteLabelPc(label){
+    const m = String(label || "").trim().match(/^([A-Ga-g])\s*(#|\u266F|b|\u266D)?$/);
+    if(!m) return -1;
+    const info = aiParseNote(m[1], m[2]);
+    return info ? info.pc : -1;
+  }
+  function aiSnapTarget(c){
+    const raw = c.target_note !== undefined ? c.target_note : (c.targetNote !== undefined ? c.targetNote : (c.target !== undefined ? c.target : c.drill_note));
+    if(typeof raw === "string" && /^\s*[A-Ga-g]\s*(#|\u266F|b|\u266D)?\s*$/.test(raw)){
+      const k = aiParseKeyName(raw);
+      if(k) return k.pc;
+    }
+    const q = String(AI.lastQuery || "");
+    const bad = "(?!\\s+(?:string|strings|fret|frets|position|positions|major|minor|scale|scales|mode|modes|chord|chords|pentatonic|blues|groove|riff))";
+    const r1 = new RegExp("\\b(?:every|all|each)\\s+(?:the\\s+)?(?:(?:instances?|occurrences?|positions?|places?|spots?)\\s+of\\s+(?:the\\s+)?)?(?:notes?\\s+)?([A-G](?:#|b|\u266F|\u266D)?)(?:'?s)?(?![A-Za-z0-9#])" + bad);
+    const r2 = new RegExp("\\b(?:[Ff]ind|[Ll]ocate|[Hh]unt(?: for)?|[Ww]here (?:is|are))\\s+(?:me\\s+)?(?:the\\s+)?(?:notes?\\s+)?([A-G](?:#|b|\u266F|\u266D)?)(?:'?s)?(?=\\s+(?:on|in|across|along|up|anywhere|everywhere)\\b|\\s*[.,?!]|\\s*$)");
+    const m = q.match(r1) || q.match(r2);
+    if(m){
+      const k = aiParseKeyName(m[1]);
+      if(k) return k.pc;
+    }
+    return null;
+  }
+  function aiSnapScale(c, root){
+    const tryName = function(v){
+      if(typeof v !== "string" || !v.trim()) return null;
+      const bare = v.replace(/^\s*[A-Ga-g](?:#|b|\u266F|\u266D)?\s+/, "");
+      return aiResolveScale(bare) || aiResolveScale(v);
+    };
+    let k = tryName(c.scale) || tryName(c.scale_type) || tryName(c.mode);
+    if(k) return k;
+    const q = String(AI.lastQuery || "");
+    const m = q.match(/\b([A-G](?:#|b)?)\s+((?:natural |harmonic |melodic )?(?:major pentatonic|minor pentatonic|pentatonic|major|minor|dorian|phrygian|lydian|mixolydian|locrian|aeolian|ionian|blues))\b/i);
+    if(m){
+      const kp = aiParseKeyName(m[1]);
+      if(kp && kp.pc === root) return aiResolveScale(m[2]);
+    }
+    return null;
+  }
+  function aiSnapItems(items, c, root, bpm){
+    try{
+      if(!items || !items.length || !c || typeof c !== "object") return items;
+      if(c.snap === false || c.pitch_snap === false) return items;
+      const strs = activeStrings();
+      let allowed = null, mode = "", tgt = aiSnapTarget(c);
+      if(tgt !== null){ allowed = [tgt]; mode = "target"; }
+      else {
+        const sk = aiSnapScale(c, root);
+        if(sk && AI_SCALES[sk]){ allowed = AI_SCALES[sk].degs.map(function(d){ return (root + d) % 12; }); mode = "scale"; }
+      }
+      if(!allowed || allowed.length >= 12) return items;
+      const ok = function(sIdx, f){ return f >= 0 && f <= FRET_COUNT && strs[sIdx] && allowed.indexOf(pitchClassAt(strs[sIdx], f)) >= 0; };
+      const bms = 60000 / (bpm || 92);
+      const out = []; let last = null, snapped = 0, dropped = 0; const log = [];
+      const radius = mode === "scale" ? 2 : 1;
+      items.forEach(function(it){
+        if(it.rest){ out.push(it); return; }
+        if(ok(it.s, it.f)){ out.push(it); last = it; return; }
+        const lblPc = aiNoteLabelPc(it.label);
+        let best = null, bs = 1e9;
+        for(let d = 1; d <= radius && best === null; d++){
+          [-1, 1].forEach(function(sg){
+            const nf = it.f + sg * d;
+            if(!ok(it.s, nf)) return;
+            let score = d * 10 + (last ? Math.abs(nf - last.f) * 0.1 : 0) + (sg > 0 ? 0.01 : 0);
+            if(lblPc >= 0 && pitchClassAt(strs[it.s], nf) === lblPc) score -= 5;   // prefer the fret that matches the note name the model wrote
+            if(score < bs){ bs = score; best = nf; }
+          });
+        }
+        if(best !== null){
+          const n2 = {}; Object.keys(it).forEach(function(k){ n2[k] = it[k]; });
+          n2.f = best; out.push(n2); last = n2; snapped++;
+          log.push("s" + it.s + " f" + it.f + " -> f" + best);
+        } else {
+          dropped++;
+          log.push("s" + it.s + " f" + it.f + " dropped");
+          out.push({ rest:true, beats:(it.durMs !== null && it.durMs !== undefined) ? clampNum(it.durMs / bms, 0.25, 8) : it.beats });
+        }
+      });
+      // a hammer-on / pull-off / slide needs a note on the same string right before it
+      out.forEach(function(it, i){
+        if(it.rest || !it.link) return;
+        const pv = out[i - 1];
+        if(!pv || pv.rest || pv.s !== it.s) it.link = "";
+      });
+      AI.lastSnap = { mode:mode, snapped:snapped, dropped:dropped, log:log };
+      if(out.some(function(it){ return !it.rest; })) return out;
+      if(mode !== "target") return items;
+      // every step was off-target: fall back to the complete drill, every instance of the target note from low to high
+      const list = [];
+      strs.forEach(function(sd, sIdx){
+        for(let f = 0; f <= FRET_COUNT; f++){ if(pitchClassAt(sd, f) === allowed[0]) list.push({ s:sIdx, f:f, fq:freqAt(sd, f) }); }
+      });
+      list.sort(function(a, b){ return a.fq - b.fq; });
+      return list.map(function(x){ return { s:x.s, f:x.f, beats:1, ghost:false, durMs:null, tech:"", link:"", label:"" }; });
+    }catch(e){
+      return items;   // the snapper must never break playback
+    }
+  }
   function aiSequenceSource(c){
     const raw = c.sequence || c.timeline || c.steps || c.notes || null;
     if(Array.isArray(raw)) return raw;
@@ -10722,7 +10832,7 @@
       beats = clampNum(beats, 0.25, 8);
       if(rest){ items.push({ rest:true, beats:beats }); return; }
       const pos = aiResolvePos(it, root, prev);
-      if(pos){ items.push({ s:pos.s, f:pos.f, beats:beats, ghost:ghost, durMs:durMs, tech:tech, link:link }); prev = pos; }
+      if(pos){ items.push({ s:pos.s, f:pos.f, beats:beats, ghost:ghost, durMs:durMs, tech:tech, link:link, label:(it && typeof it === "object" && it.label !== undefined) ? String(it.label) : "" }); prev = pos; }
     });
     return items;
   }
@@ -10851,7 +10961,7 @@
     const modeName = String(c.mode || c.scale_type || c.chord_type || "");
     // ---- SEQUENCE ACTION (the primary BOARD_CMD format) ----
     if(act === "sequence" || act === "play_timeline" || act === "play_sequence" || act === "jam" || act === "start_jam"){
-      const items = aiParseSequence(c, root);
+      const items = aiSnapItems(aiParseSequence(c, root), c, root, bpm);
       if(!items.length) return null;
       const beatsMs = 60000 / bpm;
       const events = []; const positions = [];
@@ -10870,7 +10980,7 @@
     }
     if(act === "highlight_notes" || act === "highlight" || act === "show_scale" || act === "show_chord" || act === "play_notes" || act === "show_notes"){
       if(aiSequenceSource(c)){
-        const items = aiParseSequence(c, root);
+        const items = aiSnapItems(aiParseSequence(c, root), c, root, bpm);
         if(items.length){
           const ms = 60000/bpm;
           const ev = []; let t = 0;
