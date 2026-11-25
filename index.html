@@ -1050,22 +1050,27 @@
     display:block;
     position:static;
     z-index:420;
-    height:30px;
-    line-height:30px;
-    padding:0 14px;
+    height:auto;
+    min-height:30px;
+    line-height:1.25;
+    padding:5px 14px 6px;
+    box-sizing:border-box;
     text-align:center;
     font-size:13px;
     font-weight:700;
     letter-spacing:0.3px;
     color:rgba(231,236,245,0.9);
     background:linear-gradient(180deg, rgba(11,15,24,0.55), rgba(11,15,24,0));
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
+    white-space:normal;
+    overflow:visible;
+    text-overflow:clip;
+    overflow-wrap:break-word;
+    word-break:normal;
     pointer-events:none;
     text-shadow:0 1px 3px rgba(0,0,0,0.7);
   }
   .hud-banner b{color:var(--accent-brass);}
+  .hud-banner #hudRootChip{font-variant-numeric:tabular-nums;}   /* the ticking timer never reflows the wrapped banner */
 
   body.immersive-mode .hud-gear{
     grid-area:gear;
@@ -1186,7 +1191,7 @@
       align-items:end;
     }
     body.immersive-mode .hud-mini{padding:6px 0 8px;}
-    body.immersive-mode .hud-banner{height:26px; line-height:26px;}
+    body.immersive-mode .hud-banner{height:auto; min-height:26px; line-height:1.25;}
   }
   @media (max-width:430px){
     body.immersive-mode .view-toolbar .hand-toggle-wrap{font-size:0;}   /* hides the long label text */
@@ -8760,26 +8765,70 @@
     document.getElementById("downloadBtn").addEventListener("click", downloadAppSource);
     document.getElementById("immersiveBtn").addEventListener("click", toggleImmersive);
 
-    document.addEventListener("fullscreenchange", ()=>{
-      if(!document.fullscreenElement && document.body.classList.contains("immersive-mode")){
-        exitImmersive();
+    /* Mobile screenshots (and the system bars / task switcher) can drop the browser's native fullscreen and fire blur,
+       visibilitychange and small viewport-height changes. None of those may close Upright Fullscreen Focus View: the
+       immersive layout is pure CSS (fixed container), so it simply stays open and re-fits. Only an explicit click on
+       the "Exit" button (or the Professor BAI "X") ends it, via exitImmersive(). Desktop keeps native Esc behaviour. */
+    function isTouchPrimary(){
+      try{
+        if(window.matchMedia && window.matchMedia("(pointer:coarse)").matches) return true;
+      }catch(e){}
+      return (navigator.maxTouchPoints || 0) > 0 && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+    }
+    const onNativeFullscreenChange = ()=>{
+      if(!document.fullscreenElement && !document.webkitFullscreenElement &&
+         document.body.classList.contains("immersive-mode")){
+        if(!isTouchPrimary()){ exitImmersive(); return; }
+        // touch device: keep the CSS Fullscreen Focus layout open, just re-fit it
+        fitBoard(true);
+        setTimeout(()=>{ fitBoard(true); }, 250);
         return;
       }
       fitBoard(true);
-    });
+    };
+    let resizeRaf = 0;
+    document.addEventListener("fullscreenchange", onNativeFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", onNativeFullscreenChange);
+    const refitIfImmersive = ()=>{
+      if(!document.body.classList.contains("immersive-mode")) return;
+      fitBoard(true);
+      setTimeout(()=>{ fitBoard(true); }, 250);
+    };
+    document.addEventListener("visibilitychange", refitIfImmersive);   // re-fit only, never close
+    window.addEventListener("blur", refitIfImmersive);                  // re-fit only, never close
+    window.addEventListener("focus", refitIfImmersive);
+    window.addEventListener("pageshow", refitIfImmersive);
+    if(window.visualViewport){
+      window.visualViewport.addEventListener("resize", ()=>{
+        if(!document.body.classList.contains("immersive-mode")) return;
+        if(resizeRaf) return;
+        resizeRaf = requestAnimationFrame(()=>{ resizeRaf = 0; fitBoard(true); });
+      });
+    }
     document.addEventListener("keydown", (e)=>{
       if(e.key !== "Escape") return;
       if(hudOpen){ closeHud(); return; }
-      if(document.body.classList.contains("immersive-mode") && !document.fullscreenElement){
+      if(document.body.classList.contains("immersive-mode") && !document.fullscreenElement && !isTouchPrimary()){
         exitImmersive();
       }
     });
-    let resizeRaf = 0;
     window.addEventListener("resize", ()=>{
       if(resizeRaf) return;
       resizeRaf = requestAnimationFrame(()=>{ resizeRaf = 0; fitBoard(true); });
     });
     window.addEventListener("orientationchange", ()=>{ setTimeout(()=>{ fitBoard(true); }, 250); });
+    (function(){
+      const hb = document.getElementById("hudBanner");
+      if(!hb || !window.ResizeObserver) return;
+      let lastH = -1, raf = 0;
+      new ResizeObserver(function(){
+        const h = hb.offsetHeight;
+        if(h === lastH) return;
+        lastH = h;
+        if(!document.body.classList.contains("immersive-mode") || raf) return;
+        raf = requestAnimationFrame(function(){ raf = 0; fitBoard(true); });
+      }).observe(hb);
+    })();
     document.querySelectorAll(".hand-toggle button").forEach((btn)=>{
       btn.addEventListener("click", ()=>{ setHandGuide(btn.dataset.hand === "show"); });
     });
@@ -10079,7 +10128,10 @@
       { string:2, fret:5, label:"Re", finger:3, duration:500 },
       { string:1, fret:5, label:"Mi", finger:1, duration:500 },
       { string:3, fret:5, label:"Fa", finger:1, duration:500 }
-    ]}];
+    ],
+    boxes:[{ s1:1, f1:3, s2:3, f2:5, color:"#f59e0b", label:"G major shape" }],
+    arrows:[{ from:{ s:2, f:3 }, to:{ s:3, f:5 }, color:"#38bdf8", label:"Up the scale" }]
+    }];
     const exHighlight = [{ action:"highlight_notes", key:"F", chord_type:"min7", notes:[0, 3, 7, 10] }];
     // 10ths: root on the E (or A) string + the 10th (octave + 3rd) on the D (or G) string, walked up the neck in diatonic positions (4-string indices: E=0, A=1, D=2, G=3)
     const tenths = [[1,2,"F","A"],[3,4,"G","B"],[5,5,"A","C"],[7,7,"B","D"],[8,9,"C","E"],[10,10,"D","F"],[12,12,"E","G"],[13,14,"F","A"]];
@@ -10104,12 +10156,13 @@
       "HOUSE KNOWLEDGE: (1) Tonic Solfa dual labels: the minor 3rd is Ri / Mo and the flat 7th is Li / Toh; enharmonic boundaries Mi# = Fa, Fa-flat = Mi, Ti# = Do, Do-flat = Ti. (2) String geometry: neighbouring strings are a perfect 4th apart, so the same pitch is 5 frets away on the next string; the octave is one string up and 7 frets back, or two strings up and 2 frets over. (3) The 3-fret pivot: the relative minor root sits exactly 3 frets back on the same string from the major root. (4) Seven interlocking mode shapes: Box 1 Ionian, 2 Dorian, 3 Phrygian, 4 Lydian, 5 Mixolydian, 6 Aeolian, 7 Locrian. (5) Tab reading: bottom line = lowest, thickest string; h hammer-on, p pull-off, / slide up, backslash slide down, X ghost note, S slap, P pop.",
       "You are Professor BAI: an encyclopedic, open-ended bass virtuoso, arranger, theorist and visual teacher. Handle any musical concept, theory, genre, technique, composition, transcription, or uploaded material the user provides. Translate it into playable bass-fretboard sequences, clear directional movement, shape boundaries, and suitable backing tracks. Explain unfamiliar ideas accurately rather than forcing them into a preset lesson.",
       "VISUAL MAPPING EXTENSIONS: any BOARD_CMD object may include optional arrows:[{from:{s:0,f:3},to:{s:0,f:5},color:\"#38bdf8\",label:\"Shift\"}] and boxes:[{s1:0,f1:3,s2:3,f2:5,color:\"#f59e0b\",label:\"Shape 1\"}]. String indices follow the active tuning. Use arrows for movement and boxes to enclose scale, chord, fingering or genre-specific shapes.",
+      "AUTO-DRAW RULE (MANDATORY, applies even when the user never mentions boxes or arrows): whenever you explain a scale, mode, pattern, shape, arpeggio, chord, interval, progression, harmonic idea or any other theory concept that has positions on the neck, the <BOARD_CMD> object MUST contain BOTH a non-empty \"boxes\" array AND a non-empty \"arrows\" array. Boxes enclose the real string-and-fret shape (one box per position, mode shape or chord grip, each with a short label such as \"Root shape\"). Arrows show movement (low root to octave, position shifts, the direction of the line, the root motion between chords of a progression). Use 2 to 6 boxes and 2 to 8 arrows, accurate s and f bounds on the active tuning, distinct colours and labels of at most four words. Drawing them is the default: never wait to be asked, and leave them out only if the user explicitly says not to draw them.",
       "CRITICAL — BOARD COMMAND FORMAT: whenever the user asks to show, play, demonstrate, teach, or generate ANY groove, scale, mode, riff, fill, progression, chord, or exercise, you MUST append a valid JSON command wrapped in <BOARD_CMD>...</BOARD_CMD> tags at the very end of your reply. The board will animate and play it automatically. Example:\n<BOARD_CMD>" + JSON.stringify(exSequence) + "</BOARD_CMD>\nMore examples:\n<BOARD_CMD>" + JSON.stringify(exHighlight) + "</BOARD_CMD>",
       "SEQUENCE ACTION (the primary format): {\"action\":\"sequence\",\"key\":\"C\",\"bpm\":100,\"steps\":[{\"string\":2,\"fret\":3,\"label\":\"Do\",\"finger\":1,\"duration\":500}]}. String index: 0 = LOWEST string (E on 4-string, B on 5-string), 1 = A, 2 = D, 3 = G (4-string). On a 5-string bass: 0 = B, 1 = E, 2 = A, 3 = D, 4 = G. Fret is 0-24. Duration is milliseconds per step. Optional per-step \"tech\":\"slap\" or \"pop\" makes the on-screen right hand slap (thumb) or pop (index). Optional per-step \"link\":\"h\" (hammer-on), \"p\" (pull-off), \"/\" (slide up) or \"\\\\\" (slide down) on a step that stays on the same string animates the left-hand technique with no right-hand pluck. Optional \"action\":\"highlight_notes\" with \"chord_type\" or \"scale_type\" and \"notes\" array of semitone offsets for static chord/scale highlights. Other actions: {\"action\":\"load_lesson\",\"lesson_id\":\"<id>\"}, {\"action\":\"set_notation\",\"mode\":\"solfa\"}, {\"action\":\"set_key\",\"key\":\"D\"}, {\"action\":\"show_mode_boxes\"}, {\"action\":\"show_pivot\"}, {\"action\":\"clear_neck\"}.",
       "BACKING BAND (built-in electric piano + drums): the sequence command also accepts optional fields: \"chords\" = an array of {\"chord\":\"Dm9\",\"beat\":0,\"duration\":4} objects (beat and duration are counted in BEATS from the start of the sequence, 4 beats per bar; chord symbols such as Dm9, G13, Cmaj9, A7b13, Bbm7, F#m7b5, Ebmaj7 are played as warm Rhodes-style comping with a soft pad), \"drums\": true (crisp kick, snare and hi-hat loop with a fill into the last bar) and \"bpm\". The board plays the piano and drums in time with your bassline automatically. Use them whenever the user asks you to jam, solo, play fills or play a groove OVER a chord progression, or asks for piano, keys, drums or a backing band. When you use them: (1) write a rich, professional 24 to 32 step bassline that follows the chords bar by bar (root on the downbeat, then chord tones, 9ths and 13ths, with octave pops using \"tech\":\"pop\", slides using \"link\":\"/\", hammer-ons \"link\":\"h\", pull-offs \"link\":\"p\", ghost notes, and a chromatic fill that approaches the next chord root from a half step); (2) give every step a \"beats\" length (0.25, 0.5, 0.75 or 1) instead of milliseconds so the notes lock to the chord grid, and make the beats of all steps add up to the total length of the chords array; (3) include the matching \"chords\" array and \"drums\":true, set \"key\" to the tonic of the progression and \"bpm\" between 85 and 120. Hammer-ons, pull-offs and slides must stay on the same string as the previous step. Example (ii-V-I-VI in C, 32 steps, 16 beats): <BOARD_CMD>" + JSON.stringify(exBand) + "</BOARD_CMD>",
       "KEY SYNC: the \"key\" of every sequence command is the new master root key: the board switches the key selector to it and re-lights the neck so only that key's roots are gold. Always set \"key\" to the tonic you are playing in.",
       "Valid lesson ids: " + lessons.join("; ") + ".",
-      "RULES: (a) the <BOARD_CMD>...</BOARD_CMD> tag must contain ONLY valid JSON — no prose, no markdown fences, no explanation. (b) The visible reply should be spoken-brief (≤150 words) and should describe what you are showing. (c) Never mention the tag or explain the JSON to the user — the board handles it silently. (d) Omit the tag only when the question is pure theory with nothing to show (e.g. 'what is a ii-V-I progression?' might still warrant a show; 'what is the circle of fifths?' needs only prose). (e) For scale and mode questions, aim for 8-16 step sequences. (e2) GROOVE LENGTH RULE: when asked to play or demonstrate a full groove, bassline, riff, fill (including multi-bar fills) or progression, or to play alongside a piano, chords or a chord progression, you MUST generate a complete 24 to 32 step musical sequence (never a short 4 or 5 note snippet and never fewer than 24 steps) that covers multiple neck positions (at least four different fret regions: low, middle and upper) AND multiple strings with realistic rhythm, keeping each hop within a comfortable hand span. Follow the chord changes bar by bar when playing along with piano or chords: root on the downbeat, then chord tones, passing notes and a fill into the next bar. Always write the whole JSON array and close the BOARD_CMD tag; never stop early. (e3) MODE BOX RULE: the sequence command may include an optional boolean \"showModeBoxes\":true. Set it to true whenever the user asks to see how a groove connects across mode shapes or mode boxes; the board then lights the seven colored Mode Box outlines while the groove plays so every note is seen moving inside and across the connected boxes. Example: [{\"action\":\"sequence\",\"key\":\"A\",\"bpm\":100,\"showModeBoxes\":true,\"steps\":[ ...24 to 32 steps... ]}]. (f) Keep timings sensible: eighth notes = 250ms at 120bpm, quarter notes = 500ms. (g) 10THS RULE: when the user asks for 10ths, tenths, 10th intervals or 10th chord voicings, build each shape as a two-note dyad: the ROOT on the E or A string and the 10th (an octave plus a 3rd: 16 semitones for a major 10th, 15 for a minor 10th) on the D or G string. Fret maths from a root at fret r: root on E string + 10th on G string = r+1 for a major 10th and r for a minor 10th (C major 10th: E string fret 8 + G string fret 9; D minor 10th: E string fret 10 + G string fret 10; F major 10th: E fret 1 + G fret 2; A minor 10th: E fret 5 + G fret 5). Root on E string + 10th on D string = r+6 major or r+5 minor. Root on A string + 10th on G string = r+6 major or r+5 minor. Root on A string + 10th on D string = r+11 major or r+10 minor (low roots only). On a 5-string bass shift every string index up by one (B = 0). Play each dyad as two consecutive steps (root, then the 10th, a comfortable stretch of one hand span with finger 1 on the root and finger 4 on the 10th) and WALK the shape through at least five different neck positions: step through the scale or chord progression the user names (diatonic 10ths of a major key are major on I, IV and V and minor on ii, iii, vi and vii), or move the shape up and down the neck in a progression, switching between the E-string root and the A-string root where it keeps the hand low. NEVER answer a 10ths request by repeating one 4-note arpeggio: the sequence must contain 16 to 24 steps made of different dyad positions, and your spoken reply should name the first two or three shapes with their string and fret numbers. Example (C major diatonic 10ths walked up the neck, 16 steps): <BOARD_CMD>" + JSON.stringify(exTenths) + "</BOARD_CMD>"
+      "RULES: (a) the <BOARD_CMD>...</BOARD_CMD> tag must contain ONLY valid JSON — no prose, no markdown fences, no explanation. (b) The visible reply should be spoken-brief (≤150 words) and should describe what you are showing. (c) Never mention the tag or explain the JSON to the user — the board handles it silently. (d) Omit the tag only for non-musical chat or a question with no possible position on the neck (e.g. 'what is the circle of fifths?' needs only prose); every scale, mode, pattern, progression, chord, interval or theory concept that can be shown on the neck MUST get a tag that includes boxes and arrows (see the AUTO-DRAW RULE). (e) For scale and mode questions, aim for 8-16 step sequences. (e2) GROOVE LENGTH RULE: when asked to play or demonstrate a full groove, bassline, riff, fill (including multi-bar fills) or progression, or to play alongside a piano, chords or a chord progression, you MUST generate a complete 24 to 32 step musical sequence (never a short 4 or 5 note snippet and never fewer than 24 steps) that covers multiple neck positions (at least four different fret regions: low, middle and upper) AND multiple strings with realistic rhythm, keeping each hop within a comfortable hand span. Follow the chord changes bar by bar when playing along with piano or chords: root on the downbeat, then chord tones, passing notes and a fill into the next bar. Always write the whole JSON array and close the BOARD_CMD tag; never stop early. (e3) MODE BOX RULE: the sequence command may include an optional boolean \"showModeBoxes\":true. Set it to true whenever the user asks to see how a groove connects across mode shapes or mode boxes; the board then lights the seven colored Mode Box outlines while the groove plays so every note is seen moving inside and across the connected boxes. Example: [{\"action\":\"sequence\",\"key\":\"A\",\"bpm\":100,\"showModeBoxes\":true,\"steps\":[ ...24 to 32 steps... ]}]. (f) Keep timings sensible: eighth notes = 250ms at 120bpm, quarter notes = 500ms. (g) 10THS RULE: when the user asks for 10ths, tenths, 10th intervals or 10th chord voicings, build each shape as a two-note dyad: the ROOT on the E or A string and the 10th (an octave plus a 3rd: 16 semitones for a major 10th, 15 for a minor 10th) on the D or G string. Fret maths from a root at fret r: root on E string + 10th on G string = r+1 for a major 10th and r for a minor 10th (C major 10th: E string fret 8 + G string fret 9; D minor 10th: E string fret 10 + G string fret 10; F major 10th: E fret 1 + G fret 2; A minor 10th: E fret 5 + G fret 5). Root on E string + 10th on D string = r+6 major or r+5 minor. Root on A string + 10th on G string = r+6 major or r+5 minor. Root on A string + 10th on D string = r+11 major or r+10 minor (low roots only). On a 5-string bass shift every string index up by one (B = 0). Play each dyad as two consecutive steps (root, then the 10th, a comfortable stretch of one hand span with finger 1 on the root and finger 4 on the 10th) and WALK the shape through at least five different neck positions: step through the scale or chord progression the user names (diatonic 10ths of a major key are major on I, IV and V and minor on ii, iii, vi and vii), or move the shape up and down the neck in a progression, switching between the E-string root and the A-string root where it keeps the hand low. NEVER answer a 10ths request by repeating one 4-note arpeggio: the sequence must contain 16 to 24 steps made of different dyad positions, and your spoken reply should name the first two or three shapes with their string and fret numbers. Example (C major diatonic 10ths walked up the neck, 16 steps): <BOARD_CMD>" + JSON.stringify(exTenths) + "</BOARD_CMD>"
     ].join("\n\n");
   }
   function aiGeminiBody(q, rawMode){
@@ -10302,7 +10355,8 @@
       "STRING/FRET RULES: String index 0 is the lowest active string. Four-string E-A-D-G tuning uses indices 0-3; five-string B-E-A-D-G uses 0-4. Fret values are integers 0-24. Use the actual active tuning " + strings + ". key is the tonic; bpm is a number from 50 to 180. Each step should contain string, fret and beats; beats should normally be 0.25, 0.5, 0.75 or 1. Optional fields include label, finger, link, tech, ghost and rest.",
       "STEP QUALITY: Supply 16-24 meaningful note events, not placeholders or repetitions used merely to reach the count. Use multiple strings and sensible hand positions. For a scale or mode, show its characteristic degrees and sound; for intervals, show the interval on the neck; for chords, show chord tones and useful voicings; for progressions, follow the harmony. Keep hammer-ons (link h), pull-offs (link p) and slides (link /) on the same string as the previous played note.",
       "HARMONY/BACKING: chords is an array of objects such as {\"chord\":\"Dm9\",\"beat\":0,\"duration\":4}; beat and duration are measured in quarter-note beats. Use real chord symbols and align each chord to the relevant steps. drums must always be a boolean. If the user asks for piano, keys, drums, backing band, jam or groove, set drums:true where appropriate and include the matching chords array. Set bpm to a musically suitable tempo.",
-      "DIAGRAMS: Whenever showing a shape, chord/scale box, shift, interval jump, octave relationship, harmonic symmetry, position connection or note movement, include arrows and/or boxes in the same BOARD_CMD object. Arrow schema: {\"from\":{\"s\":0,\"f\":3},\"to\":{\"s\":1,\"f\":5},\"color\":\"#38bdf8\",\"label\":\"shift\"}. Box schema: {\"s1\":0,\"f1\":3,\"s2\":3,\"f2\":5,\"color\":\"#f59e0b\",\"label\":\"shape\"}. Coordinates are active string indices and fret numbers. Use accurate bounds and readable labels; arrows show direction and boxes enclose the actual shape.",
+      "DIAGRAMS: Whenever showing a shape, chord/scale box, shift, interval jump, octave relationship, harmonic symmetry, position connection or note movement, include BOTH boxes and arrows in the same BOARD_CMD object. Arrow schema: {\"from\":{\"s\":0,\"f\":3},\"to\":{\"s\":1,\"f\":5},\"color\":\"#38bdf8\",\"label\":\"shift\"}. Box schema: {\"s1\":0,\"f1\":3,\"s2\":3,\"f2\":5,\"color\":\"#f59e0b\",\"label\":\"shape\"}. Coordinates are active string indices and fret numbers. Use accurate bounds and readable labels; arrows show direction and boxes enclose the actual shape.",
+      "AUTO-DRAW RULE (MANDATORY, applies even when the user never mentions boxes or arrows): whenever you explain a scale, mode, pattern, shape, arpeggio, chord, interval, progression, harmonic idea or any other theory concept that has positions on the neck, the <BOARD_CMD> object MUST contain BOTH a non-empty \"boxes\" array AND a non-empty \"arrows\" array. Boxes enclose the real string-and-fret shape (one box per position, mode shape or chord grip, each with a short label such as \"Root shape\"). Arrows show movement (low root to octave, position shifts, the direction of the line, the root motion between chords of a progression). Use 2 to 6 boxes and 2 to 8 arrows, accurate s and f bounds on the active tuning, distinct colours and labels of at most four words. Drawing them is the default: never wait to be asked, and leave them out only if the user explicitly says not to draw them.",
       "GROOVE WRITING: For grooves, riffs, fills, solos and progressions, use the full 16-24-step budget to create a coherent musical phrase. Put roots on strong beats, use chord tones, passing notes, rhythmic variation, tasteful slides, hammer-ons, pull-offs, ghost notes and occasional octave pops. Align bass notes with chord changes and make the final phrase resolve naturally. Do not claim a chord or scale tone that the fret/string coordinates do not produce.",
       "OUTPUT FORMAT: First write the complete teaching explanation in ordinary prose. Then append the complete BOARD_CMD block. JSON must use double-quoted keys/strings, numeric string/fret/beat values, valid arrays and objects, no comments, no trailing commas and no markdown fences inside the tag. Do not place explanation inside the JSON. Close both the JSON and BOARD_CMD tag.",
       "Current active tuning, lowest to highest: " + strings + ". Current master key: " + state.key + ". Be specific, encouraging and musically useful."
