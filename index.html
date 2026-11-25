@@ -775,7 +775,7 @@
   body.freestyle-mode #fretboard .marker,
   body.freestyle-mode #fretboard .marker-tooltip,
   body.freestyle-mode .note-dropdown,
-  body.freestyle-mode #vectorRig,\n  body.freestyle-mode #bai-vector-overlay,
+  body.freestyle-mode #vectorRig,
   body.freestyle-mode .pivot-toast{display:none !important;}
   .hud-mini-rh{display:flex; align-items:stretch;}
   .hud-mini-rh .rh-toggle-btn{min-height:38px; padding:8px 12px; font-size:12px;}
@@ -1398,7 +1398,8 @@
   @keyframes laserFlash{0%{box-shadow:0 0 0 rgba(255,120,120,0);}40%{box-shadow:0 0 26px rgba(255,120,120,0.95), inset 0 0 0 2px rgba(255,120,120,0.9);}100%{box-shadow:0 0 18px rgba(53,208,208,0.45), inset 0 0 0 1px rgba(53,208,208,0.75);}}
 
   /* ---------- Unison Vector Arrows ---------- */
-  #bai-vector-overlay{position:absolute; left:0; top:0; z-index:50; pointer-events:none; width:100%; height:100%; overflow:visible;}\n  .vector-rig{position:absolute; left:0; top:0; z-index:11; pointer-events:none; overflow:visible;}
+  #bai-vector-overlay{position:absolute; left:0; top:0; z-index:45; pointer-events:none; width:100%; height:100%; overflow:visible;}
+  .vector-rig{position:absolute; left:0; top:0; z-index:45; pointer-events:none; overflow:visible;}
   .vec-group{animation:vecFade .35s ease both;}
   @keyframes vecFade{from{opacity:0;}to{opacity:1;}}
   .vec-line{stroke-dasharray:1; stroke-dashoffset:1; animation:vecDraw .6s ease-out forwards;}
@@ -1480,8 +1481,6 @@
   body.immersive-mode.ai-min .ai-drawer{z-index:99999 !important;}
   #aiDock{position:fixed !important; z-index:99999 !important;}
   #aiFloatBar{z-index:99999 !important;}
-  #bai-vector-overlay{z-index:45 !important;pointer-events:none !important;}
-  body:not(.ai-min):not(.ai-open):not(.ai-split) #aiFloatBar.on{display:none !important;}
   /* Opaque viewport-pinned fretboard while Professor BAI is open or minimized. */
   body.ai-open #immersiveContainer,
   body.ai-split #immersiveContainer,
@@ -1725,6 +1724,36 @@
     .fretboard-wrapper{padding:16px 10px 12px;}
     .academy-hub{width:100vw;}
   }
+
+  /* ================= PATCH: BAI shapes layer, Slow-Mo speed, Strategy E, dock bleed guard ================= */
+  #bai-vector-overlay{position:absolute; left:0; top:0; z-index:45 !important; pointer-events:none !important; overflow:visible;}
+  .hand-layer{z-index:60;}                       /* hand sprites always sit above the box / arrow layer */
+  .bai-shape, .bai-shape *{animation:none !important; pointer-events:none;}
+  .bai-shape text{font-family:inherit; paint-order:stroke; stroke:#0b0f18; stroke-width:0;}
+  .ai-speed{padding:6px 10px; font-size:11.5px;}
+  .ai-dock .ai-speed{padding:6px 8px; font-size:11px;}
+  .ai-float-bar .ai-speed{padding:9px 14px; font-size:12.5px;}
+  .ai-tg.ai-speed.slow{background:linear-gradient(180deg,#ffd45e,#d9a21b) !important; color:#2a1d00 !important; border-color:transparent !important; box-shadow:0 0 12px rgba(255,212,94,0.45);}
+  /* the Professor BAI transport bars only ever exist inside Fullscreen Focus View */
+  body:not(.immersive-mode) .ai-float-bar, body:not(.immersive-mode) .ai-dock{display:none !important;}
+
+  #rootHuntCard{display:none;}
+  #rootHuntCard.root-active{display:block;}
+  .rh-set-row{display:flex; align-items:center; gap:10px; margin:8px 0; font-size:12px; color:var(--text-dim); flex-wrap:wrap;}
+  .rh-set-row input[type=range]{flex:1 1 120px; min-width:100px;}
+  .rh-set-row .rh-val{font-weight:800; color:var(--accent-cyan); min-width:38px; text-align:right;}
+  #rootStyleToggle button{font-size:11px; padding:8px 6px;}
+  .root-hunt-bar{display:none; width:100%; box-sizing:border-box; margin-bottom:10px; padding:10px 12px; border:1px solid var(--accent-cyan); border-radius:12px; background:rgba(11,15,24,0.55);}
+  .root-hunt-bar.on{display:block;}
+  .rh-top{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;}
+  .rh-time{font-size:26px; font-weight:900; font-variant-numeric:tabular-nums; color:#3fe28a; letter-spacing:0.5px; min-width:84px;}
+  .rh-time.warn{color:#f0b429;}
+  .rh-time.danger{color:#ff5c5c; animation:rhPulse .6s ease-in-out infinite;}
+  @keyframes rhPulse{50%{opacity:.55;}}
+  .rh-round{font-size:11px; font-weight:800; letter-spacing:0.6px; color:var(--accent-violet); text-transform:uppercase;}
+  .rh-info{font-size:12.5px; font-weight:700; color:var(--text-main);}
+  .rh-track{height:7px; border-radius:5px; background:rgba(255,255,255,0.10); margin-top:8px; overflow:hidden;}
+  .rh-fill{height:100%; width:100%; background:#3fe28a; transition:width .1s linear, background .2s ease;}
 </style>
 </head>
 <body>
@@ -1755,15 +1784,15 @@
   <button id="aiDockReplay" disabled title="Replay the last AI fretboard demonstration">&#9654; Replay</button>
   <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop</button>
   <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; Bass</button>
+  <button class="ai-tg ai-speed" data-ai-speed title="Slow-motion practice speed: cycles 1.0x, 0.75x, 0.5x (applies to bass, piano and drums)" aria-pressed="false">Speed: 1.0x</button>
   <button id="aiDockStop" title="Stop playback" aria-label="Stop">&#9632;</button>
-  <button id="aiDockSpeed" class="ai-tg" title="Playback speed">Speed: 1.0x</button>
 </div>
 <div class="ai-float-bar" id="aiFloatBar">
   <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop: OFF</button>
   <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; AI Bass: ON</button>
+  <button class="ai-tg ai-speed" data-ai-speed title="Slow-motion practice speed: cycles 1.0x, 0.75x, 0.5x (applies to bass, piano and drums)" aria-pressed="false">Speed: 1.0x</button>
   <button class="ai-replay-pill" id="aiReplayPill" title="Replay the last AI fretboard demonstration">&#9654; Replay Groove</button>
   <button id="aiFloatStop" title="Stop playback" aria-label="Stop">&#9632;</button>
-  <button id="aiFloatSpeed" class="ai-tg" title="Playback speed">Speed: 1.0x</button>
 </div>
 <button class="mode-tags-btn" id="modeTagsBtn" title="Show or hide the COPY / PASTE banners">Tags: ON</button>
 <aside class="ai-drawer" id="aiDrawer" aria-label="Professor BAI assistant">
@@ -1778,6 +1807,7 @@
       <button id="aiVoiceBtn" title="Spoken replies (Web Speech API)">&#128266; Voice ON</button>
       <button class="ai-tg" data-ai-loop title="Repeat the backing band and the fretboard sequence until Stop" aria-pressed="false">&#128257; Loop: OFF</button>
       <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; AI Bass: ON</button>
+      <button class="ai-tg ai-speed" data-ai-speed title="Slow-motion practice speed: cycles 1.0x, 0.75x, 0.5x (applies to bass, piano and drums)" aria-pressed="false">Speed: 1.0x</button>
       <button id="aiStopBtn" title="Stop speech, playback and lessons">&#9632; Stop</button>
       <button id="aiSizeBtn" title="Make the panel taller or shorter">&#8661; Size</button>
       <button id="aiHideBtn" title="Collapse to a thin bar so the fretboard is clear">&#9660; Hide</button>
@@ -1861,6 +1891,7 @@
         <option value="hunter">Strategy B &mdash; Syllable Note Hunter</option>
         <option value="interval">Strategy C &mdash; Interval Vector Flashcard</option>
         <option value="laser">Strategy D: String Focus</option>
+        <option value="root">Strategy E &mdash; Timed Root Hunter</option>
       </select>
     <div class="strategy-bar-item" id="focusModeCard">
       <div class="label">STRATEGY D SETTINGS — STRING FOCUS</div>
@@ -1904,6 +1935,21 @@
           <option value="blues">Blues Scale (6-Note)</option>
         </optgroup>
       </select>
+    </div>
+    <div class="strategy-bar-item" id="rootHuntCard">
+      <div class="label">STRATEGY E SETTINGS &mdash; TIMED ROOT HUNTER</div>
+      <div class="rh-set-row">
+        <label for="rootSecondsInput">Time per round</label>
+        <input type="range" id="rootSecondsInput" min="5" max="60" step="5" value="20" aria-label="Seconds per round">
+        <span class="rh-val" id="rootSecondsVal">20s</span>
+      </div>
+      <div class="toggle-row compact" id="rootStyleToggle">
+        <button type="button" data-root-style="alternate" class="active">Alternate (All &harr; Single String)</button>
+        <button type="button" data-root-style="any">Any String only</button>
+        <button type="button" data-root-style="string">Single String only</button>
+      </div>
+      <label class="learn-auto"><input type="checkbox" id="rootAutoNext" checked> Auto-start the next round after grading</label>
+      <div class="switch-sub">The target is the Song Key root. Tap every instance of it before the clock hits zero; tap a marker again to remove it. Score = accuracy &times; speed (finishing with time to spare scores higher; wrong taps cost 8 points each).</div>
     </div>
     </div>
     <div class="strategy-bar-item">
@@ -2010,6 +2056,10 @@
       <span class="view-toolbar-hint">Works in every mode: Training, Groove Sandbox and Watch &amp; Learn</span>
     </div>
     <div class="challenge-panel" id="challengePanel">
+      <div class="root-hunt-bar" id="rootHuntBar" aria-live="off">
+        <div class="rh-top"><span class="rh-time" id="rhTime">20.0s</span><span class="rh-round" id="rhRound"></span><span class="rh-info" id="rhInfo"></span></div>
+        <div class="rh-track"><div class="rh-fill" id="rhFill"></div></div>
+      </div>
       <div class="challenge-text" id="challengeText">Generating your first challenge...</div>
       <div class="challenge-actions">
         <button class="btn btn-secondary" id="newChallengeBtn">New Challenge</button>
@@ -3081,7 +3131,7 @@
 
     const bus = ctx.createGain(); bus.gain.value = 0.9;
     const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 6500;
-    const dly = ctx.createDelay(0.5); dly.delayTime.value = spb * 0.75;
+    const dly = ctx.createDelay(0.5); dly.delayTime.value = Math.min(0.49, spb * 0.75);
     const fb = ctx.createGain(); fb.gain.value = 0.22;
     const wet = ctx.createGain(); wet.gain.value = 0.13;
     bus.connect(lp); lp.connect(ctx.destination);
@@ -3246,6 +3296,8 @@
      5. CHALLENGE GENERATORS (3 training strategies)
      ========================================================= */
   function generateChallenge(){
+    rootHuntStop();
+    renderStringFocusChoices();
     if(state.keyMode === "auto"){
       state.key = NOTES[Math.floor(Math.random()*NOTES.length)];
       const keySelectEl = document.getElementById("keySelect");
@@ -3261,6 +3313,8 @@
       generateIntervalChallenge();
     } else if(strategy === "laser"){
       generateLaserChallenge();
+    } else if(strategy === "root"){
+      generateRootChallenge();
     } else {
       generateHunterChallenge();
     }
@@ -3415,6 +3469,197 @@
     state.gradeResult = null;
   }
 
+  // String Focus buttons always mirror the live neck: 4-string = E A D G, 5-string = B E A D G (low B first, selectable)
+  let sfLastN = 0;
+  function renderStringFocusChoices(){
+    const box = document.getElementById("stringFocusChoices");
+    if(!box) return;
+    const strings = activeStrings(), names = strings.map(function(d){ return d.name; });
+    let sel = (state.stringFocusNames || []).filter(function(nm){ return names.indexOf(nm) >= 0; });
+    if(sfLastN !== strings.length){
+      if(strings.length === 5 && names.length && sel.indexOf(names[0]) < 0) sel.unshift(names[0]);   // low B joins the focus when 5-String is chosen
+      sfLastN = strings.length;
+    }
+    if(!sel.length) sel = names.slice();
+    state.stringFocusNames = sel;
+    box.innerHTML = "";
+    strings.forEach(function(d, i){
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.sfName = d.name;
+      b.dataset.sfIndex = String(i);
+      b.textContent = d.name;
+      b.title = (i === 0 && strings.length === 5 ? "Low " : "") + d.name + " string";
+      const on = sel.indexOf(d.name) >= 0;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      box.appendChild(b);
+    });
+  }
+
+  /* =========================================================
+     STRATEGY E - TIMED ROOT HUNTER
+     Target = the Song Key root. Rounds alternate between "Any String" and "Find <root> on the <X> string".
+     A live countdown scores accuracy x speed; works in Fullscreen (HUD banner chip) and the Standard dashboard (timer bar).
+     ========================================================= */
+  const ROOT = { seconds:20, style:"alternate", autoNext:true, round:0, lastString:-1, timer:null, nextTimer:null, nextAt:0, endAt:0, running:false, rounds:0, total:0 };
+  try{
+    const o = JSON.parse(localStorage.getItem("bassRootHunt_v1") || "null");
+    if(o){
+      if(isFinite(o.seconds)) ROOT.seconds = Math.max(5, Math.min(60, Math.round(o.seconds)));
+      if(["alternate", "any", "string"].indexOf(o.style) >= 0) ROOT.style = o.style;
+      if(typeof o.autoNext === "boolean") ROOT.autoNext = o.autoNext;
+    }
+  }catch(e){}
+  function rootSave(){ try{ localStorage.setItem("bassRootHunt_v1", JSON.stringify({ seconds:ROOT.seconds, style:ROOT.style, autoNext:ROOT.autoNext })); }catch(e){} }
+  function rootActive(){ return state.strategy === "root" && state.workstationMode === "training"; }
+  function rootIsChallenge(){ return !!(state.challenge && state.challenge.type === "root"); }
+  function rootHuntStop(){
+    if(ROOT.timer){ clearInterval(ROOT.timer); ROOT.timer = null; }
+    if(ROOT.nextTimer){ clearTimeout(ROOT.nextTimer); ROOT.nextTimer = null; }
+    ROOT.running = false; ROOT.nextAt = 0;
+    try{ rootRenderUi(); }catch(e){}
+  }
+  function rootTimeLeft(){ return ROOT.running ? Math.max(0, (ROOT.endAt - performance.now()) / 1000) : 0; }
+  function rootWhat(c){ return c.label === c.letter ? c.letter : (c.label + " (" + c.letter + ")"); }
+  function rootScopeText(c){ return c.scope === "any" ? "Any String" : ("the " + c.stringName + " string"); }
+  function generateRootChallenge(){
+    const strings = activeStrings();
+    const pc = keyIndex();
+    const letter = NOTES[pc];
+    const label = state.notation === "alphabet" ? letter : SOLFA[0];
+    ROOT.round++;
+    const scope = ROOT.style === "any" ? "any" : (ROOT.style === "string" ? "string" : (ROOT.round % 2 === 1 ? "any" : "string"));
+    let sIdx = -1;
+    if(scope === "string"){
+      const pool = strings.map(function(_, i){ return i; }).filter(function(i){ return i !== ROOT.lastString; });
+      const use = pool.length ? pool : strings.map(function(_, i){ return i; });
+      sIdx = use[Math.floor(Math.random() * use.length)];
+      ROOT.lastString = sIdx;
+    }
+    const indices = scope === "any" ? strings.map(function(_, i){ return i; }) : [sIdx];
+    const correctSet = new Set();
+    indices.forEach(function(si){
+      for(let f = 0; f <= FRET_COUNT; f++){ if(pitchClassAt(strings[si], f) === pc) correctSet.add(si + "-" + f); }
+    });
+    state.challenge = {
+      type:"root", pitchClass:pc, letter:letter, label:label, scope:scope, round:ROOT.round,
+      stringIndex:sIdx, stringIndices:indices, stringName:scope === "string" ? strings[sIdx].name : "Any",
+      correctSet:correctSet, seconds:ROOT.seconds
+    };
+    state.markers = {};
+    state.graded = false;
+    state.gradeResult = null;
+    ROOT.endAt = performance.now() + ROOT.seconds * 1000;
+    ROOT.running = true;
+    ROOT.timer = setInterval(rootTick, 100);
+  }
+  function rootTick(){
+    if(!ROOT.running) return;
+    if(!rootActive() || !rootIsChallenge()){ rootHuntStop(); return; }
+    if(rootTimeLeft() <= 0){ gradeRoot(true); return; }
+    rootRenderUi();
+  }
+  function rootCounts(){
+    const c = state.challenge, r = { ok:0, bad:0, total:0 };
+    if(!c || c.type !== "root") return r;
+    r.total = c.correctSet.size;
+    Object.keys(state.markers).forEach(function(k){ if(c.correctSet.has(k)) r.ok++; else r.bad++; });
+    return r;
+  }
+  function rootScoreFor(c, okN, badN, timeLeft){
+    const total = c.correctSet.size;
+    const acc = total ? Math.max(0, Math.round(okN / total * 100) - badN * 8) : 100;
+    const frac = c.seconds > 0 ? Math.min(1, Math.max(0, timeLeft / c.seconds)) : 0;
+    return { accuracy:acc, score:Math.round(acc * (0.75 + 0.25 * frac)) };
+  }
+  function gradeRoot(timedOut){
+    const c = state.challenge;
+    if(!c || c.type !== "root" || state.graded) return;
+    const timeLeft = timedOut ? 0 : rootTimeLeft();
+    const correct = new Set(), wrong = new Set(), missed = new Set();
+    Object.keys(state.markers).forEach(function(k){ if(c.correctSet.has(k)) correct.add(k); else wrong.add(k); });
+    c.correctSet.forEach(function(k){ if(!correct.has(k)) missed.add(k); });
+    const sc = rootScoreFor(c, correct.size, wrong.size, timeLeft);
+    const foundAll = missed.size === 0, allAccurate = wrong.size === 0;
+    const perfect = foundAll && allAccurate && !timedOut;
+    rootHuntStop();
+    state.graded = true;
+    state.gradeResult = { correct:correct, wrong:wrong, missed:missed, score:sc.score, perfect:perfect, unboxPenaltyApplied:false, foundAll:foundAll, allAccurate:allAccurate,
+      root:{ timedOut:!!timedOut, timeLeft:timeLeft, accuracy:sc.accuracy, seconds:c.seconds } };
+    ROOT.rounds++; ROOT.total += sc.score;
+    renderFretboard();
+    showFeedback();
+    updatePersistence(perfect, sc.score);
+    if(ROOT.autoNext){
+      ROOT.nextAt = performance.now() + 5000;
+      ROOT.nextTimer = setTimeout(function(){
+        ROOT.nextTimer = null; ROOT.nextAt = 0;
+        if(rootActive() && state.graded && rootIsChallenge()) generateChallenge();
+      }, 5000);
+      ROOT.timer = setInterval(function(){
+        rootRenderUi();
+        if(!ROOT.nextAt || performance.now() >= ROOT.nextAt){ clearInterval(ROOT.timer); ROOT.timer = null; }
+      }, 250);
+    }
+    rootRenderUi();
+  }
+  function rootAfterMark(){
+    const k = rootCounts();
+    if(k.total && k.ok >= k.total){ gradeRoot(false); return; }     // every root found: stop the clock and bank the speed bonus
+    rootRenderUi();
+  }
+  function rootFeedbackMsg(r, el){
+    const ri = r.root;
+    let msg;
+    if(r.perfect){
+      el.classList.add("good");
+      msg = "Root locked! Score: " + r.score + "%. Every root found with " + ri.timeLeft.toFixed(1) + "s to spare (accuracy " + ri.accuracy + "%).";
+    } else if(ri.timedOut){
+      el.classList.add("bad");
+      msg = "Time's up! Score: " + r.score + "%. " + r.missed.size + " root(s) missed" + (r.wrong.size ? " and " + r.wrong.size + " wrong tap(s)" : "") + ". Amber rings show what you missed.";
+    } else {
+      el.classList.add(r.score >= 60 ? "warn" : "bad");
+      msg = "Score: " + r.score + "% (accuracy " + ri.accuracy + "%, " + ri.timeLeft.toFixed(1) + "s left). " + (r.missed.size ? r.missed.size + " root(s) missed. " : "") + (r.wrong.size ? r.wrong.size + " incorrect marker(s)." : "");
+    }
+    if(ROOT.autoNext) msg += " Next round starts automatically.";
+    return msg;
+  }
+  function rootRenderUi(){
+    const bar = document.getElementById("rootHuntBar");
+    const on = rootActive() && rootIsChallenge();
+    if(bar) bar.classList.toggle("on", !!on);
+    const chip = document.getElementById("hudRootChip");
+    if(!on){ if(chip) chip.textContent = ""; return; }
+    const c = state.challenge, k = rootCounts(), left = rootTimeLeft();
+    let timeTxt, cls = "", pct;
+    if(state.graded && state.gradeResult && state.gradeResult.root){
+      const ri = state.gradeResult.root;
+      timeTxt = ri.timedOut ? "TIME UP" : ri.timeLeft.toFixed(1) + "s left";
+      pct = c.seconds ? ri.timeLeft / c.seconds * 100 : 0;
+      cls = ri.timedOut ? "danger" : "";
+    } else {
+      timeTxt = left.toFixed(1) + "s";
+      pct = c.seconds ? left / c.seconds * 100 : 0;
+      cls = left <= c.seconds * 0.25 ? "danger" : (left <= c.seconds * 0.5 ? "warn" : "");
+    }
+    const live = state.graded && state.gradeResult ? state.gradeResult.score : rootScoreFor(c, k.ok, k.bad, left).score;
+    const avg = ROOT.rounds ? Math.round(ROOT.total / ROOT.rounds) : null;
+    let info = "Find every " + rootWhat(c) + " \u2014 " + (c.scope === "any" ? "Any String" : "on the " + c.stringName + " string") +
+      "  |  Found " + k.ok + "/" + k.total + (k.bad ? "  |  \u2717 " + k.bad : "") + "  |  " + (state.graded ? "Score " : "Score now ") + live + "%" +
+      (avg !== null ? "  |  Session avg " + avg + "% (" + ROOT.rounds + ")" : "");
+    if(state.graded && ROOT.nextAt) info += "  |  Next round in " + Math.max(0, Math.ceil((ROOT.nextAt - performance.now()) / 1000)) + "s";
+    const t = document.getElementById("rhTime"), rd = document.getElementById("rhRound"), inf = document.getElementById("rhInfo"), fill = document.getElementById("rhFill");
+    if(t){ t.textContent = timeTxt; t.className = "rh-time" + (cls ? " " + cls : ""); }
+    if(rd) rd.textContent = "Round " + c.round + " \u00B7 " + (c.scope === "any" ? "All strings" : c.stringName + " string");
+    if(inf) inf.textContent = info;
+    if(fill){
+      fill.style.width = Math.max(0, Math.min(100, pct)) + "%";
+      fill.style.background = cls === "danger" ? "#ff5c5c" : (cls === "warn" ? "#f0b429" : "#3fe28a");
+    }
+    if(chip) chip.textContent = (state.graded ? (state.gradeResult.root.timedOut ? "TIME UP" : "Done " + live + "%") : "\u23F1 " + Math.ceil(left) + "s") + " \u00B7 " + k.ok + "/" + k.total + " found";
+  }
+
   // --- Strategy D: String Focus ---
   function generateLaserChallenge(){
     const strings = activeStrings();
@@ -3454,6 +3699,7 @@
     if(c.type === "hunter") return c.label;
     if(c.type === "matrix") return "Full Matrix";
     if(c.type === "laser") return c.label + " on " + c.stringName + (c.chromatic ? " (chromatic)" : " string(s)");
+    if(c.type === "root") return c.letter + " \u2014 " + (c.scope === "any" ? "Any String" : c.stringName + " string");
     if(c.type === "interval") return c.intervalName;
     return "-";
   }
@@ -3463,6 +3709,7 @@
     if(s === "matrix") return "Scale Matrix";
     if(s === "interval") return "Interval Flashcard";
     if(s === "laser") return "String Focus";
+    if(s === "root") return "Timed Root Hunter";
     return s;
   }
 
@@ -3475,7 +3722,17 @@
     if(!c) return;
     const el = document.getElementById("challengeText");
     const focusTag = ` &nbsp;|&nbsp; <span class="tag">Focus:</span> ${focusModeName(state.focusMode)}`;
-    if(c.type === "laser"){
+    if(c.type === "root"){
+      el.innerHTML =
+        `<span class="tag">Strategy:</span> Strategy E &mdash; Timed Root Hunter` +
+        ` &nbsp;|&nbsp; <span class="tag">Song Key:</span> ${state.key}${state.keyMode==="auto" ? " (Auto)":""} &mdash; Find every <span class="target">${rootWhat(c)}</span>` +
+        ` &nbsp;|&nbsp; <span class="tag">Round ${c.round}:</span> ` + (c.scope === "any"
+          ? `<span class="target">Any String</span> challenge`
+          : `Find ${c.letter} on the <span class="target">${c.stringName} string</span>`) +
+        ` &nbsp;|&nbsp; <span class="tag">Time:</span> ${c.seconds}s` +
+        ` &nbsp;|&nbsp; Tap every ${c.label} before the clock runs out (tap again to remove).`;
+      rootRenderUi();
+    } else if(c.type === "laser"){
       const selectedStringNames = (state.stringFocusNames || []).filter(function(name){
         return activeStrings().some(function(d){ return d.name === name; });
       });
@@ -4884,6 +5141,65 @@
     g.appendChild(ct);
     svg.appendChild(g);
   }
+  /* ---------- Professor BAI boxes + arrows: orientation-safe, persistent for the whole groove ---------- */
+  let baiArrowSeq = 0;
+  function baiPt(s, f){
+    const n = activeStrings().length;
+    return vecPoint(clampNum(Math.round(s), 0, n - 1), clampNum(Math.round(f), 0, FRET_COUNT));   // vecPoint = orient(along, cross): Upright + Horizontal, 4 + 5 strings
+  }
+  function baiPill(g, cx, cy, text, color){
+    const w = Math.max(36, String(text).length * 7.4 + 16), h = 19;
+    g.appendChild(vEl("rect", { x:cx - w/2, y:cy - h/2, width:w, height:h, rx:9.5, fill:"#0b0f18", "fill-opacity":"0.9", stroke:color, "stroke-width":"1.6" }));
+    const t = vEl("text", { x:cx, y:cy, "text-anchor":"middle", "dominant-baseline":"central", fill:color, "font-size":"12", "font-weight":"800" });
+    t.textContent = String(text);
+    g.appendChild(t);
+  }
+  function renderBaiShapes(svg, inner){
+    svg.style.position = "absolute";
+    svg.style.zIndex = "45";
+    svg.style.pointerEvents = "none";
+    svg.style.overflow = "visible";
+    const n = activeStrings().length, half = STRING_ROW_HEIGHT / 2;
+    (AI.boardBoxes || []).forEach(function(b, i){
+      const s1 = clampNum(Math.round(Math.min(b.s1, b.s2)), 0, n - 1), s2 = clampNum(Math.round(Math.max(b.s1, b.s2)), 0, n - 1);
+      const f1 = clampNum(Math.round(Math.min(b.f1, b.f2)), 0, FRET_COUNT), f2 = clampNum(Math.round(Math.max(b.f1, b.f2)), 0, FRET_COUNT);
+      // box edges in (along, cross) space, mapped through orient() so the same maths serves both orientations
+      const a0 = LABEL_GUTTER + fretLeftEdge(f1) + 2, a1 = LABEL_GUTTER + fretLeftEdge(f2) + fretCellWidth(f2) - 2;
+      const c0 = CROSS_PAD + stringCenterY(s1) - half + 3, c1 = CROSS_PAD + stringCenterY(s2) + half - 3;
+      const p = orient(a0, c0), q = orient(a1, c1);
+      const x = Math.min(p.x, q.x), y = Math.min(p.y, q.y), w = Math.abs(q.x - p.x), h = Math.abs(q.y - p.y);
+      const col = b.color || "#f59e0b";
+      const g = vEl("g", { "class":"bai-shape bai-box" });
+      g.appendChild(vEl("rect", { x:x, y:y, width:w, height:h, rx:9, fill:col, "fill-opacity":"0.18", stroke:col, "stroke-width":"3", "stroke-opacity":"0.95" }));
+      const label = b.label || ("Box " + (i + 1));
+      const pw = Math.max(36, String(label).length * 7.4 + 16);
+      const px = Math.min(Math.max(x + pw/2, pw/2 + 2), Math.max(x + pw/2, x + w - pw/2));
+      baiPill(g, px, y > 24 ? y - 13 : y + 14, label, col);
+      svg.appendChild(g);
+    });
+    (AI.boardArrows || []).forEach(function(a){
+      const pa = baiPt(a.from.s, a.from.f), pb = baiPt(a.to.s, a.to.f);
+      const dx = pb.x - pa.x, dy = pb.y - pa.y, len = Math.hypot(dx, dy);
+      if(len < 2) return;
+      const ux = dx / len, uy = dy / len, r = MARKER_PX / 2 + 3, color = a.color || "#38bdf8";
+      const trim = len > 2*r + 14 ? r : 0;
+      const x1 = pa.x + ux*trim, y1 = pa.y + uy*trim, x2 = pb.x - ux*trim, y2 = pb.y - uy*trim;
+      const id = "baiArrowHead" + (++baiArrowSeq);
+      const g = vEl("g", { "class":"bai-shape bai-arrow" });
+      const defs = vEl("defs");
+      const mk = vEl("marker", { id:id, viewBox:"0 0 12 12", refX:"11", refY:"6", markerWidth:"13", markerHeight:"13", orient:"auto", markerUnits:"userSpaceOnUse" });
+      mk.appendChild(vEl("path", { d:"M0 0 L12 6 L0 12 Z", fill:color, stroke:"#06101d", "stroke-width":"0.8" }));
+      defs.appendChild(mk); g.appendChild(defs);
+      g.appendChild(vEl("line", { x1:x1, y1:y1, x2:x2, y2:y2, stroke:"#06101d", "stroke-opacity":"0.65", "stroke-width":"8", "stroke-linecap":"round" }));
+      g.appendChild(vEl("line", { x1:x1, y1:y1, x2:x2, y2:y2, stroke:color, "stroke-width":"4.5", "stroke-linecap":"round", "marker-end":"url(#" + id + ")" }));
+      g.appendChild(vEl("circle", { cx:x1, cy:y1, r:"4.5", fill:color, stroke:"#06101d", "stroke-width":"1.2" }));
+      if(a.label){
+        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+        baiPill(g, mx - uy*17, my + ux*17, a.label, color);
+      }
+      svg.appendChild(g);
+    });
+  }
   function renderVectors(){
     const inner = document.getElementById("fretboardInner");
     if(!inner) return;
@@ -4894,8 +5210,7 @@
       svg.setAttribute("class", "vector-rig");
       svg.setAttribute("aria-hidden", "true");
       inner.appendChild(svg);
-    } else if(svg.parentElement !== inner){ inner.appendChild(svg); }
-    svg.style.cssText = "position:absolute;left:0;top:0;z-index:45;pointer-events:none;width:100%;height:100%;overflow:visible;";
+    }
     while(svg.firstChild) svg.removeChild(svg.firstChild);
     const V = state.vectors;
     const svgW = parseFloat(inner.style.width) || inner.clientWidth || 0;
@@ -4905,24 +5220,7 @@
     svg.setAttribute("viewBox", "0 0 " + svgW + " " + svgH);
     svg.setAttribute("preserveAspectRatio", "none");
     const list = [];
-    (AI.boardBoxes || []).forEach(function(b){
-      const p1=vecPoint(b.s1,b.f1), p2=vecPoint(b.s2,b.f2), x=Math.min(p1.x,p2.x), y=Math.min(p1.y,p2.y);
-      const w=Math.max(18,Math.abs(p2.x-p1.x)), h=Math.max(18,Math.abs(p2.y-p1.y)), g=vEl("g",{"class":"vec-group"});
-      g.appendChild(vEl("rect",{x:x,y:y,width:w,height:h,rx:7,fill:b.color,"fill-opacity":"0.10",stroke:b.color,"stroke-width":3,"stroke-opacity":"0.95"}));
-      if(b.label){const tx=vEl("text",{x:x+5,y:y-6,fill:b.color,"font-size":13,"font-weight":800,"paint-order":"stroke",stroke:"#0b0f18","stroke-width":3});tx.textContent=b.label;g.appendChild(tx);}
-      svg.appendChild(g);
-    });
-    (AI.boardArrows || []).forEach(function(a){
-      const pa=vecPoint(a.from.s,a.from.f), pb=vecPoint(a.to.s,a.to.f), color=a.color||"#38bdf8";
-      const dx=pb.x-pa.x,dy=pb.y-pa.y,len=Math.max(1,Math.hypot(dx,dy)),ux=dx/len,uy=dy/len,g=vEl("g",{"class":"vec-group"});
-      const defs=vEl("defs"),id="baiArrowHead"+Math.random().toString(36).slice(2);
-      const mk=vEl("marker",{id:id,markerWidth:12,markerHeight:12,refX:10,refY:6,orient:"auto",markerUnits:"userSpaceOnUse"});
-      mk.appendChild(vEl("path",{d:"M1 1 L11 6 L1 11 Z",fill:color}));defs.appendChild(mk);g.appendChild(defs);
-      g.appendChild(vEl("line",{x1:pa.x,y1:pa.y,x2:pb.x-ux*8,y2:pb.y-uy*8,stroke:"#06101d","stroke-width":8,"stroke-linecap":"round"}));
-      g.appendChild(vEl("line",{x1:pa.x,y1:pa.y,x2:pb.x-ux*8,y2:pb.y-uy*8,stroke:color,"stroke-width":4,"stroke-linecap":"round","marker-end":"url(#"+id+")"}));
-      if(a.label){const tx=vEl("text",{x:(pa.x+pb.x)/2,y:(pa.y+pb.y)/2-9,fill:color,"font-size":13,"font-weight":800,"text-anchor":"middle","paint-order":"stroke",stroke:"#0b0f18","stroke-width":3});tx.textContent=a.label;g.appendChild(tx);}
-      svg.appendChild(g);
-    });
+    renderBaiShapes(svg, inner);
     const L = state.learn;
     if(state.workstationMode === "learn" && L.lessonId === "unison" && L.idx >= 0 && L.steps[L.idx] && L.steps[L.idx].vec){
       L.steps[L.idx].vec.forEach(function(v){ list.push(v); });
@@ -5028,6 +5326,15 @@
 
     const c = state.challenge;
 
+    if(c && c.type === "root"){
+      if(!ROOT.running) return;                                   // clock stopped: round is over
+      if(state.markers[key]) delete state.markers[key];
+      else state.markers[key] = { label:c.label, pitchClass:c.pitchClass };
+      renderFretboard();
+      rootAfterMark();
+      return;
+    }
+
     if(c && c.type === "laser"){
       const activeNames = activeStrings().map(function(d){ return d.name; });
       const selectedNames = (state.stringFocusNames || []).filter(function(name){ return activeNames.indexOf(name) >= 0; });
@@ -5088,10 +5395,18 @@
     const viewportX = innerRect.left + localLeft;
     const clampedViewportX = Math.min(Math.max(viewportX, 12), Math.max(12, window.innerWidth - popupWidth - 12));
     localLeft = clampedViewportX - innerRect.left;
-    dropdown.style.left = localLeft + "px";
-    dropdown.style.top = (state.orientation === "vertical"
+    let localTop = (state.orientation === "vertical"
       ? boardEl.offsetTop + cell.offsetTop
-      : boardEl.offsetTop + cell.offsetTop + 40) + "px";
+      : boardEl.offsetTop + cell.offsetTop + 40);
+    // keep the popup inside the fretboard canvas in BOTH orientations (flip above the cell / slide back on-screen)
+    const dW = dropdown.offsetWidth || popupWidth, dH = dropdown.offsetHeight || 0;
+    const innerW = innerEl.offsetWidth || 0, innerH = innerEl.offsetHeight || 0;
+    if(innerH && dH && localTop + dH > innerH - 4){
+      localTop = state.orientation === "vertical" ? innerH - dH - 4 : boardEl.offsetTop + cell.offsetTop - dH - 6;
+    }
+    if(innerW && localLeft + dW > innerW - 2) localLeft = innerW - dW - 2;
+    dropdown.style.left = Math.max(2, localLeft) + "px";
+    dropdown.style.top = Math.max(2, localTop) + "px";
     openDropdown = dropdown;
   }
 
@@ -5250,6 +5565,7 @@
     const c = state.challenge;
     if(!c) return;
     if(c.type === "laser") gradeLaser(c);
+    else if(c.type === "root") gradeRoot(false);
     else if(c.type === "hunter") gradeHunter(c);
     else if(c.type === "matrix") gradeMatrix(c);
     else if(c.type === "interval") gradeInterval(c);
@@ -5262,7 +5578,9 @@
     el.classList.add("show");
 
     let msg = "";
-    if(r.perfect){
+    if(r.root){
+      msg = rootFeedbackMsg(r, el);
+    } else if(r.perfect){
       msg = `Flawless mapping. Score: ${r.score}%. Every required position was located and labeled correctly.`;
       el.classList.add("good");
     } else if(r.unboxPenaltyApplied){
@@ -8318,7 +8636,10 @@
 
     const strategyDSettings = document.getElementById("focusModeCard");
     const syncStrategyDSettingsVisibility = ()=>{
-      strategyDSettings.classList.toggle("strategy-d-active", document.getElementById("strategySelect").value === "laser");
+      const sv = document.getElementById("strategySelect").value;
+      strategyDSettings.classList.toggle("strategy-d-active", sv === "laser");
+      const rootCard = document.getElementById("rootHuntCard");
+      if(rootCard) rootCard.classList.toggle("root-active", sv === "root");
     };
     syncStrategyDSettingsVisibility();
     document.getElementById("strategySelect").addEventListener("change", (e)=>{
@@ -8326,6 +8647,30 @@
       syncStrategyDSettingsVisibility();
       generateChallenge();
     });
+
+    // Strategy E settings (also live inside the Fullscreen HUD because the strategy bar is re-homed there)
+    (function(){
+      const sec = document.getElementById("rootSecondsInput"), val = document.getElementById("rootSecondsVal");
+      const sty = document.getElementById("rootStyleToggle"), auto = document.getElementById("rootAutoNext");
+      const restart = function(){ if(rootActive()) generateChallenge(); };
+      if(sec){
+        sec.value = ROOT.seconds; if(val) val.textContent = ROOT.seconds + "s";
+        sec.addEventListener("input", function(){ ROOT.seconds = Math.max(5, Math.min(60, parseInt(sec.value, 10) || 20)); if(val) val.textContent = ROOT.seconds + "s"; rootSave(); });
+        sec.addEventListener("change", restart);
+      }
+      if(sty){
+        const paint = function(){ Array.prototype.forEach.call(sty.querySelectorAll("button"), function(b){ b.classList.toggle("active", b.dataset.rootStyle === ROOT.style); }); };
+        paint();
+        sty.addEventListener("click", function(e){
+          const b = e.target.closest("button[data-root-style]"); if(!b) return;
+          ROOT.style = b.dataset.rootStyle; rootSave(); paint(); restart();
+        });
+      }
+      if(auto){
+        auto.checked = ROOT.autoNext;
+        auto.addEventListener("change", function(){ ROOT.autoNext = auto.checked; rootSave(); });
+      }
+    })();
 
     document.getElementById("workstationModeToggle").addEventListener("click", (e)=>{
       const btn = e.target.closest("button[data-wsmode]");
@@ -8559,6 +8904,7 @@
         }catch(err){}
       }
     }
+    try{ aiForceCloseUi(); }catch(e){}     // second-exit bleed fix: nothing of Professor BAI may survive leaving Fullscreen Focus View
     fitBoard(true);
   }
 
@@ -8698,7 +9044,7 @@
     g.setAttribute("aria-expanded", "false");
   }
 
-  const STRATEGY_NAMES = { hunter:"Syllable Note Hunter", matrix:"Full Scale Matrix Mapping", interval:"Interval Vector Flashcard", laser:"String Focus" };
+  const STRATEGY_NAMES = { hunter:"Syllable Note Hunter", matrix:"Full Scale Matrix Mapping", interval:"Interval Vector Flashcard", laser:"String Focus", root:"Timed Root Hunter" };
   const GENRE_NAMES = { funk:"Funk Groove", jazz:"Walking Jazz", boombap:"Boom-Bap Hip Hop", highlife:"Nigerian Highlife", gospel:"Gospel Shout", afropop:"Afrobeats Pocket" };
   function updateHudBanner(){
     const el = document.getElementById("hudBanner");
@@ -8708,6 +9054,11 @@
       t = state.learn.meta.title;
     } else if(state.workstationMode === "sandbox"){
       t = "Groove Sandbox \u2014 " + (GENRE_NAMES[state.groove.genre] || "Groove") + " at " + state.groove.bpm + " BPM";
+    } else if(state.strategy === "root" && rootIsChallenge()){
+      const rc = state.challenge;
+      el.innerHTML = "<b>Strategy E</b> &middot; <span id=\"hudRootChip\"></span> &middot; Song Key: " + state.key + " &mdash; Find every " + rootWhat(rc) + " &middot; " + (rc.scope === "any" ? "Any String" : rc.stringName + " string");
+      rootRenderUi();
+      return;
     } else if(state.strategy === "laser"){
       const activeNames = (state.stringFocusNames || []).filter(function(name){
         return activeStrings().some(function(d){ return d.name === name; });
@@ -9062,12 +9413,8 @@
   /* ---- shared clock for the bass, the electric piano and the drums ---- */
   function aiAudioReady(){ return !!(state.audioEnabled && state.audioInitialized && audioCtx); }
   function aiClockNow(){ return aiAudioReady() ? audioCtx.currentTime : performance.now() / 1000; }
-  let AI_SPEED = 1.0;
-  function aiSpeedLabel(){ return "Speed: " + AI_SPEED.toFixed(2).replace(/0$/, "") + "x"; }
-  function aiCycleSpeed(){ AI_SPEED = AI_SPEED === 1 ? 0.75 : AI_SPEED === 0.75 ? 0.5 : 1; ["aiDockSpeed","aiFloatSpeed"].forEach(function(id){var b=document.getElementById(id);if(b)b.textContent=aiSpeedLabel();}); }
-  ["aiDockSpeed","aiFloatSpeed"].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener("click",aiCycleSpeed);});
   function aiTimer(fn, ms){
-    const id = setTimeout(function(){ const k = AI.timers.indexOf(id); if(k >= 0) AI.timers.splice(k, 1); fn(); }, Math.max(0, ms) / AI_SPEED);
+    const id = setTimeout(function(){ const k = AI.timers.indexOf(id); if(k >= 0) AI.timers.splice(k, 1); fn(); }, Math.max(0, ms));
     AI.timers.push(id);
     return id;
   }
@@ -9105,8 +9452,46 @@
     if(needSlap && sl !== "ready" && sl !== "error") return false;
     return true;
   }
+  /* ---------- Slow-Mo practice speed (1.0x / 0.75x / 0.5x) ---------- */
+  const AI_SPEEDS = [1, 0.75, 0.5];
+  const AI_SPEED_LABEL = { "1":"1.0x", "0.75":"0.75x", "0.5":"0.5x" };
+  function aiTimeK(){ const s = Number(AI.speed); return (s > 0 && s <= 1) ? 1 / s : 1; }
+  function aiSyncSpeed(){
+    const sp = AI.speed || 1, lbl = AI_SPEED_LABEL[String(sp)] || "1.0x";
+    document.querySelectorAll("[data-ai-speed]").forEach(function(b){
+      b.textContent = "Speed: " + lbl;
+      b.classList.toggle("slow", sp !== 1);
+      b.setAttribute("aria-pressed", sp !== 1 ? "true" : "false");
+    });
+  }
+  function aiSetSpeed(s){
+    AI.speed = AI_SPEEDS.indexOf(s) >= 0 ? s : 1;
+    try{ localStorage.setItem("aiSpeed", String(AI.speed)); }catch(e){}
+    aiSyncSpeed();
+  }
+  function aiCycleSpeed(){ aiSetSpeed(AI_SPEEDS[(AI_SPEEDS.indexOf(AI.speed || 1) + 1) % AI_SPEEDS.length]); }
+  // Returns a time-stretched COPY of the spec: every step offset, note duration, strum, glide, chord and drum timing is stretched
+  // by 1/speed (0.5x = twice as long). The original spec is untouched so Replay can run at any speed.
+  function aiScaleSpec(spec){
+    const K = aiTimeK();
+    if(K === 1 || !spec || !spec.events) return spec;
+    const out = Object.assign({}, spec);
+    out.events = spec.events.map(function(ev){
+      const e = Object.assign({}, ev);
+      if(typeof e.t === "number") e.t *= K;
+      if(e.dur) e.dur *= K;
+      if(e.strum) e.strum *= K;
+      if(e.glideTime) e.glideTime *= K;
+      return e;
+    });
+    if(spec.bpm) out.bpm = spec.bpm / K;
+    if(spec.totalMs) out.totalMs = spec.totalMs * K;
+    if(spec.band) out.band = Object.assign({}, spec.band, { bpm:spec.band.bpm / K, totalMs:(spec.band.totalMs || 0) * K });
+    return out;
+  }
   // start bass + piano + drums from ONE timestamp (audioCtx.currentTime + 0.15), after the samples are decoded and warmed
-  function aiLaunch(spec){
+  function aiLaunch(spec0){
+    const spec = aiScaleSpec(spec0);
     const token = ++AI.launchId;
     const t0wait = performance.now();
     function go(){
@@ -9244,6 +9629,7 @@
       return;
     }
     if((AI.boardArrows.length || AI.boardBoxes.length)) setVectors(true);
+    else if(!spec.boardArrows && !spec.boardBoxes){ /* no shapes in this command */ }
     if(spec.vectors){
       setVectors(true);
       if(spec.vsel) state.vectors.sel = spec.vsel;
@@ -9677,7 +10063,14 @@
   function aiStoreDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
 
   /* ---------- Gemini system prompt: BOARD_CMD tags ---------- */
-  function aiSystemPrompt(){
+  function aiNeckNote(){
+    const st = activeStrings(), names = st.map(function(d){ return d.name; });
+    return "\n\nCURRENT NECK: " + st.length + "-string bass. String indices, lowest to highest: " + names.map(function(n, i){ return i + "=" + n; }).join(", ") +
+      ". Use exactly these indices for steps, overlay, arrows {from:{s,f},to:{s,f}} and boxes {s1,f1,s2,f2}. " +
+      (st.length === 5 ? "Index 0 is the low B string, so every other index is shifted up by one versus a 4-string bass." : "This is a 4-string bass: there is no low B string.");
+  }
+  function aiSystemPrompt(){ return aiSystemPromptBase() + aiNeckNote(); }
+  function aiSystemPromptBase(){
     const strings = activeStrings().map(function(d){ return d.name; }).join(" ");
     const lessons = [];
     LESSON_CATALOG.forEach(function(cat){ cat.lessons.forEach(function(l){ lessons.push(l.id + " = " + l.title); }); });
@@ -9898,7 +10291,8 @@
     }
   }
   // Expanded Groq system prompt: complete explanation plus structured fretboard diagrams.
-  function aiGroqSystemPrompt(){
+  function aiGroqSystemPrompt(){ return aiGroqSystemPromptBase() + aiNeckNote(); }
+  function aiGroqSystemPromptBase(){
     const strings = activeStrings().map(function(d){ return d.name; }).join(" ");
     return [
       "You are Professor BAI, an expert bass guitarist, music theorist and patient visual teacher embedded in a bass fretboard workstation. Current master key: " + state.key + ". Active strings, lowest to highest: " + strings + ". Use plain, accurate musical language and teach rather than merely announce results.",
@@ -10243,17 +10637,55 @@
     return items;
   }
 
+  /* ---- lenient BOARD_CMD shape parsing: {s,f} | {string,fret} | [s,f] | string names ("B","E"...) ---- */
+  function aiShapePoint(p){
+    if(p === null || p === undefined) return null;
+    let s, f;
+    if(Array.isArray(p)){ s = p[0]; f = p[1]; }
+    else if(typeof p === "object"){
+      s = (p.s !== undefined) ? p.s : (p.string !== undefined ? p.string : p.str);
+      f = (p.f !== undefined) ? p.f : (p.fret !== undefined ? p.fret : p.fr);
+    } else return null;
+    if(typeof s === "string" && !/^\s*\d+\s*$/.test(s)) s = aiStringIndex(s);
+    s = Number(s); f = Number(f);
+    const n = activeStrings().length;
+    if(!isFinite(s) || !isFinite(f) || s < 0 || s > n - 1 || f < 0 || f > FRET_COUNT) return null;
+    return { s:Math.round(s), f:Math.round(f) };
+  }
+  function aiShapeColor(c, dflt){ return /^#[0-9a-f]{3,8}$/i.test(String(c || "")) ? String(c) : dflt; }
+  function aiShapesFromCmd(c){
+    const res = { arrows:[], boxes:[] };
+    if(!c || typeof c !== "object") return res;
+    (Array.isArray(c.arrows) ? c.arrows : []).slice(0, 48).forEach(function(a){
+      if(!a || typeof a !== "object") return;
+      const p1 = aiShapePoint(a.from), p2 = aiShapePoint(a.to);
+      if(!p1 || !p2) return;
+      res.arrows.push({ from:p1, to:p2, color:aiShapeColor(a.color, "#38bdf8"), label:String(a.label || "").slice(0, 40) });
+    });
+    (Array.isArray(c.boxes) ? c.boxes : []).slice(0, 32).forEach(function(b){
+      if(!b || typeof b !== "object") return;
+      let p1 = null, p2 = null;
+      if(b.s1 !== undefined || b.f1 !== undefined || b.string1 !== undefined){
+        const a1 = b.s1 !== undefined ? b.s1 : b.string1, g1 = b.f1 !== undefined ? b.f1 : b.fret1;
+        const a2 = b.s2 !== undefined ? b.s2 : (b.string2 !== undefined ? b.string2 : a1), g2 = b.f2 !== undefined ? b.f2 : (b.fret2 !== undefined ? b.fret2 : g1);
+        p1 = aiShapePoint({ s:a1, f:g1 }); p2 = aiShapePoint({ s:a2, f:g2 });
+      } else if(b.from && b.to){ p1 = aiShapePoint(b.from); p2 = aiShapePoint(b.to); }
+      else if(Array.isArray(b.strings) && Array.isArray(b.frets) && b.strings.length && b.frets.length){
+        p1 = aiShapePoint({ s:b.strings[0], f:b.frets[0] });
+        p2 = aiShapePoint({ s:b.strings[b.strings.length - 1], f:b.frets[b.frets.length - 1] });
+      }
+      if(!p1 || !p2) return;
+      res.boxes.push({ s1:p1.s, f1:p1.f, s2:p2.s, f2:p2.f, color:aiShapeColor(b.color, "#f59e0b"), label:String(b.label || "").slice(0, 40) });
+    });
+    return res;
+  }
   // The bridge: converts a parsed command object into the same spec format aiRun already understands
   function aiCmdToSpec(c){
     const spec = aiCmdToSpecCore(c);
     if(spec && c && typeof c === "object"){
-      const validPoint = function(p){ return p && Number.isInteger(Number(p.s)) && Number(p.s)>=0 && Number(p.s)<activeStrings().length && Number.isFinite(Number(p.f)) && Number(p.f)>=0 && Number(p.f)<=FRET_COUNT; };
-      if(Array.isArray(c.arrows)) spec.boardArrows = c.arrows.slice(0,48).filter(function(a){ return a && validPoint(a.from) && validPoint(a.to); }).map(function(a){
-        return {from:{s:Number(a.from.s),f:Number(a.from.f)},to:{s:Number(a.to.s),f:Number(a.to.f)},color:/^#[0-9a-f]{3,8}$/i.test(String(a.color||""))?String(a.color):"#38bdf8",label:String(a.label||"").slice(0,40)};
-      });
-      if(Array.isArray(c.boxes)) spec.boardBoxes = c.boxes.slice(0,32).filter(function(b){
-        return b && Number.isInteger(Number(b.s1)) && Number.isInteger(Number(b.s2)) && Number(b.s1)>=0 && Number(b.s2)>=0 && Number(b.s1)<activeStrings().length && Number(b.s2)<activeStrings().length && Number.isFinite(Number(b.f1)) && Number.isFinite(Number(b.f2)) && Number(b.f1)>=0 && Number(b.f2)>=0 && Number(b.f1)<=FRET_COUNT && Number(b.f2)<=FRET_COUNT;
-      }).map(function(b){ return {s1:Number(b.s1),f1:Number(b.f1),s2:Number(b.s2),f2:Number(b.f2),color:/^#[0-9a-f]{3,8}$/i.test(String(b.color||""))?String(b.color):"#f59e0b",label:String(b.label||"").slice(0,40)}; });
+      const sh = aiShapesFromCmd(c);
+      if(sh.arrows.length) spec.boardArrows = sh.arrows;
+      if(sh.boxes.length) spec.boardBoxes = sh.boxes;
     }
     try{
       const flag = c && (c.showModeBoxes === true || c.show_mode_boxes === true || String(c.showModeBoxes).toLowerCase() === "true");
@@ -10412,7 +10844,24 @@
     }
     return null;
   }
+  // Boxes / arrows may sit on ANY command of the reply (or on a shapes-only command): gather them all so a later
+  // set_key / notation command can never swallow them.
   function aiCommandsToSpec(cmds){
+    let spec = aiCommandsToSpecCore(cmds);
+    const arrows = [], boxes = [];
+    (cmds || []).forEach(function(c){
+      try{ const sh = aiShapesFromCmd(c); sh.arrows.forEach(function(a){ arrows.push(a); }); sh.boxes.forEach(function(b){ boxes.push(b); }); }catch(e){}
+    });
+    if(arrows.length || boxes.length){
+      if(!spec) spec = {};
+      if(!spec.clearNeck){
+        if(!(spec.boardArrows && spec.boardArrows.length) && arrows.length) spec.boardArrows = arrows.slice(0, 48);
+        if(!(spec.boardBoxes && spec.boardBoxes.length) && boxes.length) spec.boardBoxes = boxes.slice(0, 32);
+      }
+    }
+    return spec;
+  }
+  function aiCommandsToSpecCore(cmds){
     let first = null, keyOnly = null;
     for(let i = 0; i < cmds.length; i++){
       let s = null;
@@ -10497,7 +10946,7 @@
     const T = AI.tl;
     if(!T) return;
     const strings = activeStrings();
-    const tickMs = 60000/T.bpm/4;
+    const tickMs = 60000/T.bpm/4*aiTimeK();      // Slow-Mo also stretches the live timeline + its drum loop
     const t = T.tick;
     if(T.drums) playDrumStep(T.drums, t % 16);
     const ev = T.byTick[t];
@@ -10878,7 +11327,7 @@
 
     /* Keep the page behind Professor BAI locked in both expanded and Hide/minimized states. */
     if(professorActive){
-      if(aiSavedBodyOverflow === null) aiSavedBodyOverflow = document.body.style.overflow;
+      if(aiSavedBodyOverflow === null) aiSavedBodyOverflow = (document.body.style.overflow === "hidden") ? "" : document.body.style.overflow;
       document.body.style.overflow = "hidden";
     } else if(aiSavedBodyOverflow !== null){
       document.body.style.overflow = aiSavedBodyOverflow;
@@ -10932,7 +11381,34 @@
     const rb = document.getElementById("aiDockReplay");
     if(rb) rb.disabled = !can;
     const bar = document.getElementById("aiFloatBar");
-    if(bar) bar.classList.toggle("on", can && !drawerOpen && !AI.min);
+    // the floating Loop / AI Bass / Replay bar only lives inside Fullscreen Focus View, never over the dashboard
+    if(bar) bar.classList.toggle("on", can && !drawerOpen && !AI.min && document.body.classList.contains("immersive-mode"));
+  }
+  // Unconditional teardown of every Professor BAI surface: drawer, mini dock, floating bar and the body scroll lock.
+  function aiForceCloseUi(){
+    const dr = document.getElementById("aiDrawer"), dock = document.getElementById("aiDock"), bar = document.getElementById("aiFloatBar");
+    AI.min = false;
+    if(dr){
+      dr.classList.remove("open", "collapsed", "hidden");
+      ["display", "visibility", "opacity", "pointer-events", "transform", "position", "z-index"].forEach(function(p){ dr.style.removeProperty(p); });
+    }
+    if(dock){
+      dock.classList.remove("collapsed", "hidden");
+      ["display", "position", "z-index"].forEach(function(p){ dock.style.removeProperty(p); });
+      if(dock.parentElement !== document.body) document.body.appendChild(dock);
+    }
+    if(bar){
+      bar.classList.remove("on", "collapsed", "hidden");
+      ["display", "position", "z-index"].forEach(function(p){ bar.style.removeProperty(p); });
+      if(bar.parentElement !== document.body) document.body.appendChild(bar);
+    }
+    document.body.classList.remove("ai-min", "ai-open", "ai-split", "ai-compact");
+    aiSavedBodyOverflow = null;
+    document.body.style.overflow = "";
+    document.documentElement.style.overflow = "";
+    const tg = document.getElementById("aiToggleBtn");
+    if(tg) tg.setAttribute("aria-expanded", "false");
+    try{ fitBoard(true); }catch(e){}
   }
   // Loop / AI Bass toggle pills (dock, floating bar and AI header stay in sync)
   function aiSyncToggles(){
@@ -10946,6 +11422,7 @@
       b.classList.toggle("mute", AI.bassMute);
       b.setAttribute("aria-pressed", AI.bassMute ? "true" : "false");
     });
+    aiSyncSpeed();
   }
   function aiSetLoop(on){
     AI.loop = !!on;
@@ -10968,6 +11445,8 @@
     try{ AI.loop = localStorage.getItem("aiLoop") === "1"; AI.bassMute = localStorage.getItem("aiBassMute") === "1"; }catch(e){}
     document.querySelectorAll("[data-ai-loop]").forEach(function(b){ b.addEventListener("click", function(){ aiSetLoop(!AI.loop); }); });
     document.querySelectorAll("[data-ai-bass]").forEach(function(b){ b.addEventListener("click", function(){ aiSetBassMute(!AI.bassMute); }); });
+    try{ const sp = parseFloat(localStorage.getItem("aiSpeed")); AI.speed = AI_SPEEDS.indexOf(sp) >= 0 ? sp : 1; }catch(e){ AI.speed = 1; }
+    document.querySelectorAll("[data-ai-speed]").forEach(function(b){ b.addEventListener("click", function(){ aiCycleSpeed(); }); });
     const fs = document.getElementById("aiFloatStop");
     if(fs) fs.addEventListener("click", function(){ aiStopSeq(); aiStopSpeech(); });
     if(AI.bassMute){ AI.muteFreestyle = !FREESTYLE.on; if(!FREESTYLE.on) setFreestyle(true); }
@@ -11053,17 +11532,10 @@
       floatBar.style.setProperty("z-index","99999","important");
     });
     document.getElementById("aiCloseBtn").addEventListener("click", function(){
-      aiOpen(false);
-      const floatBar = document.getElementById("aiFloatBar"); if(floatBar){floatBar.classList.remove("on");floatBar.style.display="none";}
-      const dock = document.getElementById("aiDock"); if(dock){dock.classList.remove("on");dock.style.display="none";}
-      document.body.style.overflow = ""; aiSavedBodyOverflow = null;
-      const drawer = document.getElementById("aiDrawer");
-      drawer.classList.remove("collapsed","open");
-      drawer.style.display = "";
-      document.body.classList.remove("ai-min","ai-open","ai-split","ai-compact");
-      AI.min = false;
-      aiApplyLayout();
+      try{ aiOpen(false); }catch(e){}
+      aiForceCloseUi();
       if(document.body.classList.contains("immersive-mode")) exitImmersive();
+      aiForceCloseUi();          // unconditional: drawer + collapsed bar + floating bar hidden, overflow reset, every time
     });
     document.getElementById("aiHideBtn").addEventListener("click", function(){ aiMinimize(true); });
     document.getElementById("aiDockShow").addEventListener("click", function(){ aiMinimize(false); });
