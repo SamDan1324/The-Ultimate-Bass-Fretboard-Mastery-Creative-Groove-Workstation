@@ -5186,6 +5186,16 @@
     t.textContent = String(text);
     g.appendChild(t);
   }
+  // The four octave / unison relationships between two positions of the same note. Each has its own colour and label.
+  function baiArrowKind(from, to){
+    if(!from || !to) return null;
+    const ds = Math.abs(to.s - from.s), df = Math.abs(to.f - from.f);
+    if(ds === 1 && df === 5) return { id:"unison", color:"#38bdf8", label:"-5 / +5 Unison" };
+    if(ds === 1 && df === 7) return { id:"oct7", color:"#34d399", label:"-7 / +7 Octave" };
+    if(ds === 2 && df === 2) return { id:"oct2", color:"#fbbf24", label:"-2 / +2 Octave" };
+    if(ds === 0 && df === 12) return { id:"oct12", color:"#e879f9", label:"-12 / +12 Octave" };
+    return null;
+  }
   function renderBaiShapes(svg, inner){
     svg.style.position = "absolute";
     svg.style.zIndex = "45";
@@ -5209,11 +5219,13 @@
       baiPill(g, px, y > 24 ? y - 13 : y + 14, label, col);
       svg.appendChild(g);
     });
+    const placedPills = [];
     (AI.boardArrows || []).forEach(function(a){
       const pa = baiPt(a.from.s, a.from.f), pb = baiPt(a.to.s, a.to.f);
       const dx = pb.x - pa.x, dy = pb.y - pa.y, len = Math.hypot(dx, dy);
       if(len < 2) return;
-      const ux = dx / len, uy = dy / len, r = MARKER_PX / 2 + 3, color = a.color || "#38bdf8";
+      const kind = baiArrowKind(a.from, a.to);
+      const ux = dx / len, uy = dy / len, r = MARKER_PX / 2 + 3, color = kind ? kind.color : (a.color || "#38bdf8");
       const trim = len > 2*r + 14 ? r : 0;
       const x1 = pa.x + ux*trim, y1 = pa.y + uy*trim, x2 = pb.x - ux*trim, y2 = pb.y - uy*trim;
       const id = "baiArrowHead" + (++baiArrowSeq);
@@ -5222,8 +5234,8 @@
       const mk = vEl("marker", { id:id, viewBox:"0 0 12 12", refX:"11", refY:"6", markerWidth:"13", markerHeight:"13", orient:"auto", markerUnits:"userSpaceOnUse" });
       mk.appendChild(vEl("path", { d:"M0 0 L12 6 L0 12 Z", fill:color, stroke:"#06101d", "stroke-width":"0.8" }));
       defs.appendChild(mk);
-      // adjacent-string unison shift (1 string apart, 5 frets apart) is drawn double-headed: -5 / +5 frets
-      const biDir = Math.abs(a.to.s - a.from.s) === 1 && Math.abs(a.to.f - a.from.f) === 5;
+      // every unison / octave relationship (see baiArrowKind) is drawn double-headed in its own colour
+      const biDir = !!kind;
       let idStart = null;
       if(biDir){
         idStart = id + "s";
@@ -5237,10 +5249,24 @@
       if(biDir) mainAttrs["marker-start"] = "url(#" + idStart + ")";
       g.appendChild(vEl("line", mainAttrs));
       if(!biDir) g.appendChild(vEl("circle", { cx:x1, cy:y1, r:"4.5", fill:color, stroke:"#06101d", "stroke-width":"1.2" }));
-      const lbl = biDir ? "-5 / +5 frets" : a.label;
+      const lbl = kind ? kind.label : a.label;
       if(lbl){
-        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-        baiPill(g, mx - uy*17, my + ux*17, lbl, color);
+        // neat pill: try several spots along / beside the arrow until it clears every pill already placed
+        const pw = Math.max(36, String(lbl).length * 7.4 + 16), ph = 19;
+        const hit = function(cx, cy){
+          return placedPills.some(function(q){ return Math.abs(cx - q.cx) < (pw + q.w) / 2 + 3 && Math.abs(cy - q.cy) < (ph + q.h) / 2 + 3; });
+        };
+        let pick = null;
+        const ts = [0.5, 0.35, 0.65, 0.22, 0.78, 0.42, 0.58], offs = [17, -17, 31, -31, 45, -45];
+        for(let ti = 0; ti < ts.length && !pick; ti++){
+          for(let oi = 0; oi < offs.length && !pick; oi++){
+            const cx = x1 + (x2 - x1) * ts[ti] - uy * offs[oi], cy = y1 + (y2 - y1) * ts[ti] + ux * offs[oi];
+            if(!hit(cx, cy)) pick = { cx:cx, cy:cy };
+          }
+        }
+        if(!pick) pick = { cx:(x1 + x2) / 2 - uy * 17, cy:(y1 + y2) / 2 + ux * 17 };
+        placedPills.push({ cx:pick.cx, cy:pick.cy, w:pw, h:ph });
+        baiPill(g, pick.cx, pick.cy, lbl, color);
       }
       svg.appendChild(g);
     });
@@ -9745,20 +9771,29 @@
         spec.overlay = spec.overlay.filter(function(p){ return strs[p.s] && pitchClassAt(strs[p.s], p.f) === tgt; });
       }
       if(!Array.isArray(spec.overlay) || !spec.overlay.length) return;
-      const have = {}; spec.overlay.forEach(function(p){ have[p.s + "-" + p.f] = true; });
-      const arrows = Array.isArray(spec.boardArrows) ? spec.boardArrows.slice() : [];
+      // every highlighted target position, deduplicated, then EVERY valid pair under the four unison / octave rules
+      const pts = [], seen = {};
+      spec.overlay.forEach(function(p){ const k = p.s + "-" + p.f; if(!seen[k] && p.f >= 0 && p.f <= FRET_COUNT){ seen[k] = true; pts.push({ s:p.s, f:p.f }); } });
+      pts.sort(function(a, b){ return (a.s - b.s) || (a.f - b.f); });
       const same = function(a, b){ return a.s === b.s && a.f === b.f; };
-      const linked = function(p, q){
-        return arrows.some(function(a){ return (same(a.from, p) && same(a.to, q)) || (same(a.from, q) && same(a.to, p)); });
-      };
-      Object.keys(have).forEach(function(k){
-        const bits = k.split("-").map(Number), s = bits[0], f = bits[1];
-        const nk = (s + 1) + "-" + (f - 5);
-        if(!have[nk]) return;
-        const p = { s:s, f:f }, q = { s:s + 1, f:f - 5 };
-        if(!linked(p, q)) arrows.push({ from:p, to:q, color:"#22d3ee", label:"-5 / +5 frets" });
+      const existing = Array.isArray(spec.boardArrows) ? spec.boardArrows : [];
+      const gen = [], genKeys = {};
+      for(let i = 0; i < pts.length; i++){
+        for(let j = i + 1; j < pts.length; j++){
+          const kind = baiArrowKind(pts[i], pts[j]);
+          if(!kind) continue;
+          const key = pts[i].s + "-" + pts[i].f + ">" + pts[j].s + "-" + pts[j].f;
+          if(genKeys[key]) continue;
+          genKeys[key] = true;
+          gen.push({ from:{ s:pts[i].s, f:pts[i].f }, to:{ s:pts[j].s, f:pts[j].f }, color:kind.color, label:kind.label });
+        }
+      }
+      // keep any other AI arrow that is not one of the pairs already generated
+      const rest = existing.filter(function(a){
+        return !gen.some(function(g){ return (same(g.from, a.from) && same(g.to, a.to)) || (same(g.from, a.to) && same(g.to, a.from)); });
       });
-      if(arrows.length) spec.boardArrows = arrows.slice(0, 48);
+      const arrows = gen.concat(rest);
+      if(arrows.length) spec.boardArrows = arrows.slice(0, 64);
     }catch(e){}
   }
   // the pitch class the dashboard's master-key dot may keep showing: only the real tonic of the active sequence
