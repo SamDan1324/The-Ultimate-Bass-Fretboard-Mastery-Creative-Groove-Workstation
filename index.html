@@ -3965,7 +3965,7 @@
           if(sandboxStepMap[key]) cell.appendChild(buildSandboxMarkerEl(sandboxStepMap[key]));
         } else if(state.workstationMode === "learn"){
           if(learnMap[key]) cell.appendChild(buildLearnMarkerEl(learnMap[key]));
-        } else if(state.markers[key]){
+        } else if(state.markers[key] && !baiSuppressDashDot(sIdx, f, sDef, state.markers[key])){
           cell.appendChild(buildMarkerEl(key, sIdx, f, sDef));
         }
 
@@ -3979,7 +3979,7 @@
     if(state.workstationMode === "training" && state.challenge && state.challenge.type === "interval"){
       const c = state.challenge;
       const anchorCell = board.querySelector(`.fret-cell[data-string="${c.anchorStringIndex}"][data-fret="${c.anchorFret}"]`);
-      if(anchorCell && !anchorCell.querySelector(".marker")){
+      if(anchorCell && !anchorCell.querySelector(".marker") && !baiIsActive()){
         const m = document.createElement("div");
         m.className = "marker anchor-mystery";
         m.textContent = "\u25CF";
@@ -4061,6 +4061,21 @@
     lane.classList.add("flash");
   }
 
+  // While Professor BAI is open, the dashboard's locked Master Song Key anchor dot is hidden unless it is the real
+  // root of the active <BOARD_CMD> sequence (AI.dashRoot). Clear neck / single-note drills therefore stay 100% clean.
+  function baiIsActive(){
+    const dr = document.getElementById("aiDrawer");
+    return !!((dr && dr.classList.contains("open")) || document.body.classList.contains("ai-min"));
+  }
+  function baiSuppressDashDot(sIdx, f, sDef, data){
+    try{
+      if(!baiIsActive()) return false;
+      if(!data || !data.locked) return false;
+      const dr = (typeof AI !== "undefined") ? AI.dashRoot : null;
+      if(dr !== null && dr !== undefined && pitchClassAt(sDef, f) === dr) return false;
+      return true;
+    }catch(e){ return false; }
+  }
   function buildMarkerEl(key, sIdx, fret, sDef){
     const data = state.markers[key];
     const marker = document.createElement("div");
@@ -9173,7 +9188,7 @@
      12. BASS PROFESSOR AI: offline theory engine, bi-directional neck control, spoken replies
      ========================================================= */
   let aiOverlay = {};
-  const AI = { loop:false, bassMute:false, launchId:0, voiceOn:true, voice:null, timers:[], lastSpec:null, lastQuery:"", started:false, path:null, chips:false, chipActive:-1, rhBadge:null, tip:null, modes:null, tl:null, tlNow:null, boardArrows:[], boardBoxes:[] };
+  const AI = { loop:false, bassMute:false, launchId:0, voiceOn:true, voice:null, timers:[], lastSpec:null, lastQuery:"", started:false, path:null, chips:false, chipActive:-1, rhBadge:null, tip:null, modes:null, tl:null, tlNow:null, boardArrows:[], boardBoxes:[], dashRoot:null };
   const AI_FLAT_PARENTS = [5,10,3,8,1,6];
   const AI_NOTE_BASE = { c:0, d:2, e:4, f:5, g:7, a:9, b:11 };
 
@@ -9396,6 +9411,7 @@
     aiOverlay = {};
     AI.path = null; AI.chips = false; AI.chipActive = -1; AI.rhBadge = null; AI.tip = null; AI.modes = null; AI.tlNow = null;
     AI.boardArrows = []; AI.boardBoxes = [];
+    AI.dashRoot = null;
     AI.lastSpec = null; AI.replaySpec = null;
     state.vectors.enabled = false; state.vectors.sel = null;
     state.modeViz.boxes = false; state.modeViz.pivot = false;
@@ -9674,6 +9690,43 @@
     el._hideTimer = setTimeout(function(){ el.style.display = "none"; }, 4000);
   }
 
+  // ---- single-note target drills ("Find every C"): drop stray non-target dots and complete the +/-5 fret unison arrows ----
+  function aiCleanTargetSpec(spec){
+    try{
+      if(!spec || spec.lesson || spec.timeline || spec.modes || spec.pivot) return;
+      const tgt = aiSnapTarget({});
+      if(tgt === null) return;
+      const strs = activeStrings();
+      if(Array.isArray(spec.overlay)){
+        spec.overlay = spec.overlay.filter(function(p){ return strs[p.s] && pitchClassAt(strs[p.s], p.f) === tgt; });
+      }
+      if(!Array.isArray(spec.overlay) || !spec.overlay.length) return;
+      const have = {}; spec.overlay.forEach(function(p){ have[p.s + "-" + p.f] = true; });
+      const arrows = Array.isArray(spec.boardArrows) ? spec.boardArrows.slice() : [];
+      const same = function(a, b){ return a.s === b.s && a.f === b.f; };
+      const linked = function(p, q){
+        return arrows.some(function(a){ return (same(a.from, p) && same(a.to, q)) || (same(a.from, q) && same(a.to, p)); });
+      };
+      Object.keys(have).forEach(function(k){
+        const bits = k.split("-").map(Number), s = bits[0], f = bits[1];
+        const nk = (s + 1) + "-" + (f - 5);
+        if(!have[nk]) return;
+        const p = { s:s, f:f }, q = { s:s + 1, f:f - 5 };
+        if(!linked(p, q)) arrows.push({ from:p, to:q, color:"#22d3ee", label:"-5 frets" });
+      });
+      if(arrows.length) spec.boardArrows = arrows.slice(0, 48);
+    }catch(e){}
+  }
+  // the pitch class the dashboard's master-key dot may keep showing: only the real tonic of the active sequence
+  function aiDashRootFor(spec){
+    try{
+      if(!spec || spec.key === undefined || spec.key === null) return null;
+      if(!(spec.overlay && spec.overlay.length) && !(spec.events && spec.events.length)) return null;
+      const tgt = aiSnapTarget({});
+      if(tgt !== null && tgt !== spec.key) return null;
+      return spec.key;
+    }catch(e){ return null; }
+  }
   function aiRun(spec){
     aiStopSeq();
     AI.lastSpec = spec;
@@ -9682,6 +9735,8 @@
     AI.path = null; AI.chips = false; AI.chipActive = -1; AI.rhBadge = null; AI.tip = null; AI.modes = null; AI.tlNow = null;
     if(!spec) return;
     if(spec.clearNeck){ aiClearOverlay(); return; }
+    aiCleanTargetSpec(spec);
+    AI.dashRoot = aiDashRootFor(spec);
     AI.boardArrows = Array.isArray(spec.boardArrows) ? spec.boardArrows : [];
     AI.boardBoxes = Array.isArray(spec.boardBoxes) ? spec.boardBoxes : [];
     if(spec.timeline) aiPrepareCanvas();
@@ -10743,7 +10798,49 @@
     }
     return null;
   }
+  // Final-step resolution: a scale run / groove with a known key must land on the tonic. If the last sounding step is
+  // another scale degree, move it to the nearest tonic fret on the same string (or an adjacent string).
+  function aiResolveToTonic(items, c, root){
+    try{
+      if(!items || items.length < 2 || !c || typeof c !== "object") return items;
+      if(c.snap === false || c.pitch_snap === false || c.resolve === false) return items;
+      if(!c.key || !aiParseKeyName(c.key)) return items;
+      if(aiSnapTarget(c) !== null) return items;
+      if(/\b(10ths?|tenths?)\b/i.test(String(AI.lastQuery || ""))) return items;
+      let li = -1;
+      for(let i = items.length - 1; i >= 0; i--){ if(!items[i].rest){ li = i; break; } }
+      if(li < 1) return items;
+      const it = items[li], strs = activeStrings();
+      if(!strs[it.s] || pitchClassAt(strs[it.s], it.f) === root) return items;
+      let best = null, bs = 1e9;
+      [0, -1, 1].forEach(function(ds){
+        const ns = it.s + ds;
+        if(!strs[ns]) return;
+        for(let f = 0; f <= FRET_COUNT; f++){
+          if(pitchClassAt(strs[ns], f) !== root) continue;
+          const score = Math.abs(f - it.f) + (ds === 0 ? 0 : 0.5);
+          if(score < bs){ bs = score; best = { s:ns, f:f }; }
+        }
+      });
+      if(!best) return items;
+      const out = items.slice(), n2 = {};
+      Object.keys(it).forEach(function(k){ n2[k] = it[k]; });
+      n2.s = best.s; n2.f = best.f;
+      if(it.label) n2.label = labelForPitchClass(root);
+      let pv = null;
+      for(let i = li - 1; i >= 0; i--){ if(!out[i].rest){ pv = out[i]; break; } }
+      if(n2.link && (!pv || pv.s !== n2.s)) n2.link = "";
+      out[li] = n2;
+      if(AI.lastSnap) AI.lastSnap.resolved = "s" + it.s + " f" + it.f + " -> s" + n2.s + " f" + n2.f;
+      return out;
+    }catch(e){
+      return items;
+    }
+  }
   function aiSnapItems(items, c, root, bpm){
+    return aiResolveToTonic(aiSnapItemsCore(items, c, root, bpm), c, root);
+  }
+  function aiSnapItemsCore(items, c, root, bpm){
     try{
       if(!items || !items.length || !c || typeof c !== "object") return items;
       if(c.snap === false || c.pitch_snap === false) return items;
@@ -10976,7 +11073,9 @@
       const strs = activeStrings();
       positions.forEach(function(p){ if(pitchClassAt(strs[p.s], p.f) === root) p.role = "root"; });
       // every root of the NEW key on the neck is gold-plated; played notes sit on top of them
-      return { key: root, overlay: aiPositionsForPcs(root, [0]).concat(positions), events: play ? events : [], bpm: bpm, totalMs: t };
+      const tgtPc = aiSnapTarget(c);
+      const rootPlate = (tgtPc === null || tgtPc === root) ? aiPositionsForPcs(root, [0]) : [];
+      return { key: root, overlay: rootPlate.concat(positions), events: play ? events : [], bpm: bpm, totalMs: t };
     }
     if(act === "highlight_notes" || act === "highlight" || act === "show_scale" || act === "show_chord" || act === "play_notes" || act === "show_notes"){
       if(aiSequenceSource(c)){
@@ -11574,6 +11673,7 @@
     }
     aiApplyLayout();
     aiSyncDock();
+    try{ renderFretboard(); }catch(e){}
   }
   function aiSyncDock(){
     const can = !!AI.replaySpec;
