@@ -1743,8 +1743,15 @@
   .ai-speed{padding:6px 10px; font-size:11.5px;}
   .ai-dock .ai-speed{padding:6px 8px; font-size:11px;}
   .ai-float-bar .ai-speed{padding:9px 14px; font-size:12.5px;}
+  body.bai-layer-unisons #bai-vector-overlay .bai-box, body.bai-layer-unisons #bai-vector-overlay .bai-arrow:not(.bai-kind-unison){display:none !important;}
+  body.bai-layer-octaves #bai-vector-overlay .bai-box, body.bai-layer-octaves #bai-vector-overlay .bai-arrow:not(.bai-kind-octave){display:none !important;}
+  body.bai-layer-boxes #bai-vector-overlay .bai-arrow{display:none !important;}
+  .ai-tg.ai-layer.filtered{background:linear-gradient(180deg,#7c5cff,#4b3d99); color:#fff;}
   body.bai-shapes-off #bai-vector-overlay{display:none !important;}   /* Shapes: OFF hides every box, box label and arrow; the diagram data stays, so ON restores it */
   .ai-tg.ai-shapes{white-space:nowrap;}
+  .ai-tg.ai-layer{white-space:nowrap;}
+  .ai-dock .ai-layer{padding:6px 8px; font-size:11px;}
+  .ai-float-bar .ai-layer{padding:9px 14px; font-size:12.5px;}
   .ai-dock .ai-shapes{padding:6px 8px; font-size:11px;}
   .ai-float-bar .ai-shapes{padding:9px 14px; font-size:12.5px;}
   .ai-tg.ai-speed.slow{background:linear-gradient(180deg,#ffd45e,#d9a21b) !important; color:#2a1d00 !important; border-color:transparent !important; box-shadow:0 0 12px rgba(255,212,94,0.45);}
@@ -1800,6 +1807,7 @@
   <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; Bass</button>
   <button class="ai-tg ai-speed" data-ai-speed title="Slow-motion practice speed: cycles 1.0x, 0.75x, 0.5x (applies to bass, piano and drums)" aria-pressed="false">Speed: 1.0x</button>
   <button class="ai-tg ai-shapes on" data-ai-shapes title="Show or hide the coloured boxes and arrows drawn on the neck (the diagram is kept, so turning it back on restores it)" aria-pressed="true">&#128208; Shapes: ON</button>
+  <button class="ai-tg ai-layer" data-ai-layer title="Filter the drawn diagram: All, Unisons only, Octaves only, or Boxes only (cycles)" aria-pressed="false">&#128269; Layer: All</button>
   <button id="aiDockStop" title="Stop playback" aria-label="Stop">&#9632;</button>
 </div>
 <div class="ai-float-bar" id="aiFloatBar">
@@ -1807,6 +1815,7 @@
   <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; AI Bass: ON</button>
   <button class="ai-tg ai-speed" data-ai-speed title="Slow-motion practice speed: cycles 1.0x, 0.75x, 0.5x (applies to bass, piano and drums)" aria-pressed="false">Speed: 1.0x</button>
   <button class="ai-tg ai-shapes on" data-ai-shapes title="Show or hide the coloured boxes and arrows drawn on the neck (the diagram is kept, so turning it back on restores it)" aria-pressed="true">&#128208; Shapes: ON</button>
+  <button class="ai-tg ai-layer" data-ai-layer title="Filter the drawn diagram: All, Unisons only, Octaves only, or Boxes only (cycles)" aria-pressed="false">&#128269; Layer: All</button>
   <button class="ai-replay-pill" id="aiReplayPill" title="Replay the last AI fretboard demonstration">&#9654; Replay Groove</button>
   <button id="aiFloatStop" title="Stop playback" aria-label="Stop">&#9632;</button>
 </div>
@@ -1825,6 +1834,7 @@
       <button class="ai-tg" data-ai-bass title="Mute Professor BAI's own bass notes so you can play over the band" aria-pressed="false">&#127928; AI Bass: ON</button>
       <button class="ai-tg ai-speed" data-ai-speed title="Slow-motion practice speed: cycles 1.0x, 0.75x, 0.5x (applies to bass, piano and drums)" aria-pressed="false">Speed: 1.0x</button>
   <button class="ai-tg ai-shapes on" data-ai-shapes title="Show or hide the coloured boxes and arrows drawn on the neck (the diagram is kept, so turning it back on restores it)" aria-pressed="true">&#128208; Shapes: ON</button>
+  <button class="ai-tg ai-layer" data-ai-layer title="Filter the drawn diagram: All, Unisons only, Octaves only, or Boxes only (cycles)" aria-pressed="false">&#128269; Layer: All</button>
       <button id="aiStopBtn" title="Stop speech, playback and lessons">&#9632; Stop</button>
       <button id="aiSizeBtn" title="Make the panel taller or shorter">&#8661; Size</button>
       <button id="aiHideBtn" title="Collapse to a thin bar so the fretboard is clear">&#9660; Hide</button>
@@ -5179,10 +5189,11 @@
     const n = activeStrings().length;
     return vecPoint(clampNum(Math.round(s), 0, n - 1), clampNum(Math.round(f), 0, FRET_COUNT));   // vecPoint = orient(along, cross): Upright + Horizontal, 4 + 5 strings
   }
-  function baiPill(g, cx, cy, text, color){
-    const w = Math.max(36, String(text).length * 7.4 + 16), h = 19;
+  function baiPill(g, cx, cy, text, color, fs){
+    fs = fs || 12;
+    const w = fs === 12 ? Math.max(36, String(text).length * 7.4 + 16) : Math.max(24, String(text).length * fs * 0.62 + 10), h = fs === 12 ? 19 : fs + 8;
     g.appendChild(vEl("rect", { x:cx - w/2, y:cy - h/2, width:w, height:h, rx:9.5, fill:"#0b0f18", "fill-opacity":"0.9", stroke:color, "stroke-width":"1.6" }));
-    const t = vEl("text", { x:cx, y:cy, "text-anchor":"middle", "dominant-baseline":"central", fill:color, "font-size":"12", "font-weight":"800" });
+    const t = vEl("text", { x:cx, y:cy, "text-anchor":"middle", "dominant-baseline":"central", fill:color, "font-size":String(fs), "font-weight":"800" });
     t.textContent = String(text);
     g.appendChild(t);
   }
@@ -5190,10 +5201,10 @@
   function baiArrowKind(from, to){
     if(!from || !to) return null;
     const ds = Math.abs(to.s - from.s), df = Math.abs(to.f - from.f);
-    if(ds === 1 && df === 5) return { id:"unison", color:"#38bdf8", label:"-5 / +5 Unison" };
-    if(ds === 1 && df === 7) return { id:"oct7", color:"#34d399", label:"-7 / +7 Octave" };
-    if(ds === 2 && df === 2) return { id:"oct2", color:"#fbbf24", label:"-2 / +2 Octave" };
-    if(ds === 0 && df === 12) return { id:"oct12", color:"#e879f9", label:"-12 / +12 Octave" };
+    if(ds === 1 && df === 5) return { id:"unison", group:"unison", color:"#38bdf8", label:"-5/+5" };
+    if(ds === 1 && df === 7) return { id:"oct7", group:"octave", color:"#34d399", label:"-7/+7" };
+    if(ds === 2 && df === 2) return { id:"oct2", group:"octave", color:"#fbbf24", label:"-2/+2" };
+    if(ds === 0 && df === 12) return { id:"oct12", group:"octave", color:"#e879f9", label:"-12/+12" };
     return null;
   }
   function renderBaiShapes(svg, inner){
@@ -5229,7 +5240,7 @@
       const trim = len > 2*r + 14 ? r : 0;
       const x1 = pa.x + ux*trim, y1 = pa.y + uy*trim, x2 = pb.x - ux*trim, y2 = pb.y - uy*trim;
       const id = "baiArrowHead" + (++baiArrowSeq);
-      const g = vEl("g", { "class":"bai-shape bai-arrow" });
+      const g = vEl("g", { "class":"bai-shape bai-arrow" + (kind ? " bai-kind-" + kind.group : "") });
       const defs = vEl("defs");
       const mk = vEl("marker", { id:id, viewBox:"0 0 12 12", refX:"11", refY:"6", markerWidth:"13", markerHeight:"13", orient:"auto", markerUnits:"userSpaceOnUse" });
       mk.appendChild(vEl("path", { d:"M0 0 L12 6 L0 12 Z", fill:color, stroke:"#06101d", "stroke-width":"0.8" }));
@@ -5244,29 +5255,42 @@
         defs.appendChild(mk2);
       }
       g.appendChild(defs);
-      g.appendChild(vEl("line", { x1:x1, y1:y1, x2:x2, y2:y2, stroke:"#06101d", "stroke-opacity":"0.65", "stroke-width":"8", "stroke-linecap":"round" }));
-      const mainAttrs = { x1:x1, y1:y1, x2:x2, y2:y2, stroke:color, "stroke-width":"4.5", "stroke-linecap":"round", "marker-end":"url(#" + id + ")" };
-      if(biDir) mainAttrs["marker-start"] = "url(#" + idStart + ")";
-      g.appendChild(vEl("line", mainAttrs));
+      // same-string octave (-12/+12): a gentle arc that bows 14px to the side of the string instead of lying on top of it
+      const curved = !!kind && kind.id === "oct12";
+      const LIFT = 14;
+      const qx = (x1 + x2) / 2 - uy * LIFT * 2, qy = (y1 + y2) / 2 + ux * LIFT * 2;
+      if(curved){
+        const d = "M" + x1 + " " + y1 + " Q" + qx + " " + qy + " " + x2 + " " + y2;
+        g.appendChild(vEl("path", { d:d, fill:"none", stroke:"#06101d", "stroke-opacity":"0.65", "stroke-width":"8", "stroke-linecap":"round" }));
+        const pa2 = { fill:"none", stroke:color, "stroke-width":"4.5", "stroke-linecap":"round", d:d, "marker-end":"url(#" + id + ")" };
+        pa2["marker-start"] = "url(#" + idStart + ")";
+        g.appendChild(vEl("path", pa2));
+      } else {
+        g.appendChild(vEl("line", { x1:x1, y1:y1, x2:x2, y2:y2, stroke:"#06101d", "stroke-opacity":"0.65", "stroke-width":"8", "stroke-linecap":"round" }));
+        const mainAttrs = { x1:x1, y1:y1, x2:x2, y2:y2, stroke:color, "stroke-width":"4.5", "stroke-linecap":"round", "marker-end":"url(#" + id + ")" };
+        if(biDir) mainAttrs["marker-start"] = "url(#" + idStart + ")";
+        g.appendChild(vEl("line", mainAttrs));
+      }
       if(!biDir) g.appendChild(vEl("circle", { cx:x1, cy:y1, r:"4.5", fill:color, stroke:"#06101d", "stroke-width":"1.2" }));
       const lbl = kind ? kind.label : a.label;
       if(lbl){
         // neat pill: try several spots along / beside the arrow until it clears every pill already placed
-        const pw = Math.max(36, String(lbl).length * 7.4 + 16), ph = 19;
+        const cfs = kind ? 9 : 12;
+        const pw = cfs === 12 ? Math.max(36, String(lbl).length * 7.4 + 16) : Math.max(24, String(lbl).length * cfs * 0.62 + 10), ph = cfs === 12 ? 19 : cfs + 8;
         const hit = function(cx, cy){
           return placedPills.some(function(q){ return Math.abs(cx - q.cx) < (pw + q.w) / 2 + 3 && Math.abs(cy - q.cy) < (ph + q.h) / 2 + 3; });
         };
         let pick = null;
-        const ts = [0.5, 0.35, 0.65, 0.22, 0.78, 0.42, 0.58], offs = [17, -17, 31, -31, 45, -45];
+        const ts = [0.5, 0.35, 0.65, 0.22, 0.78, 0.42, 0.58], offs = curved ? [LIFT, LIFT + 14, -12, LIFT + 28, -26] : [17, -17, 31, -31, 45, -45];
         for(let ti = 0; ti < ts.length && !pick; ti++){
           for(let oi = 0; oi < offs.length && !pick; oi++){
             const cx = x1 + (x2 - x1) * ts[ti] - uy * offs[oi], cy = y1 + (y2 - y1) * ts[ti] + ux * offs[oi];
             if(!hit(cx, cy)) pick = { cx:cx, cy:cy };
           }
         }
-        if(!pick) pick = { cx:(x1 + x2) / 2 - uy * 17, cy:(y1 + y2) / 2 + ux * 17 };
+        if(!pick) pick = { cx:(x1 + x2) / 2 - uy * (curved ? LIFT : 17), cy:(y1 + y2) / 2 + ux * (curved ? LIFT : 17) };
         placedPills.push({ cx:pick.cx, cy:pick.cy, w:pw, h:ph });
-        baiPill(g, pick.cx, pick.cy, lbl, color);
+        baiPill(g, pick.cx, pick.cy, lbl, color, cfs === 12 ? undefined : cfs);
       }
       svg.appendChild(g);
     });
@@ -9621,6 +9645,28 @@
       b.setAttribute("aria-pressed", on ? "true" : "false");
     });
   }
+  /* ---------- Layer filter: All -> Unisons -> Octaves -> Boxes (only changes which parts of #bai-vector-overlay are visible) ---------- */
+  const AI_LAYERS = ["all", "unisons", "octaves", "boxes"];
+  const AI_LAYER_NAMES = { all:"All", unisons:"Unisons", octaves:"Octaves", boxes:"Boxes" };
+  function aiLayerNow(){
+    for(let i = 1; i < AI_LAYERS.length; i++){ if(document.body.classList.contains("bai-layer-" + AI_LAYERS[i])) return AI_LAYERS[i]; }
+    return "all";
+  }
+  function aiSyncLayer(){
+    const cur = aiLayerNow();
+    document.querySelectorAll("[data-ai-layer]").forEach(function(b){
+      b.textContent = "\uD83D\uDD0D Layer: " + AI_LAYER_NAMES[cur];
+      b.classList.toggle("filtered", cur !== "all");
+      b.setAttribute("aria-pressed", cur !== "all" ? "true" : "false");
+    });
+  }
+  function aiSetLayer(name){
+    if(AI_LAYERS.indexOf(name) < 0) name = "all";
+    AI_LAYERS.forEach(function(l){ document.body.classList.toggle("bai-layer-" + l, l === name && l !== "all"); });
+    try{ localStorage.setItem("aiLayer", name); }catch(e){}
+    aiSyncLayer();
+  }
+  function aiCycleLayer(){ aiSetLayer(AI_LAYERS[(AI_LAYERS.indexOf(aiLayerNow()) + 1) % AI_LAYERS.length]); }
   function aiSetShapes(on){
     document.body.classList.toggle("bai-shapes-off", !on);
     try{ localStorage.setItem("aiShapes", on ? "1" : "0"); }catch(e){}
@@ -11829,6 +11875,9 @@
     document.querySelectorAll("[data-ai-speed]").forEach(function(b){ b.addEventListener("click", function(){ aiCycleSpeed(); }); });
     try{ if(localStorage.getItem("aiShapes") === "0") document.body.classList.add("bai-shapes-off"); }catch(e){}
     document.querySelectorAll("[data-ai-shapes]").forEach(function(b){ b.addEventListener("click", function(){ aiSetShapes(!aiShapesOn()); }); });
+    try{ const savedLayer = localStorage.getItem("aiLayer"); if(savedLayer && AI_LAYERS.indexOf(savedLayer) > 0) document.body.classList.add("bai-layer-" + savedLayer); }catch(e){}
+    document.querySelectorAll("[data-ai-layer]").forEach(function(b){ b.addEventListener("click", function(){ aiCycleLayer(); }); });
+    aiSyncLayer();
     aiSyncShapes();
     const fs = document.getElementById("aiFloatStop");
     if(fs) fs.addEventListener("click", function(){ aiStopSeq(); aiStopSpeech(); });
