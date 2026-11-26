@@ -1,27 +1,45 @@
 # The Ultimate Bass Fretboard Mastery & Creative Groove Workstation
 
+# 🎸 Ultimate Bass Workstation & Professor BAI
+
 Out of my passion to learn bass guitar this year, I vibecoded this application. It was built to help beginners and intermediate bassists like myself to master the bass guitar fretboard visually, shatter box-shape dependency, and build fluid modal fluency across a 24-fret neck.
 
-Built with a high-fidelity studio dark-mode aesthetic, this workstation combines an adaptive music theory testing engine, a dynamic left-hand SVG vector hand visualization guide, and a native Web Audio API synthesizer modeling a vintage Fender Precision Bass.
+**Built by SamDan**
 
-## Key Features
+---
 
-### Immersive Dynamic UI & Layout
-- 4 or 5-String Toggle: Instantly switches neck architectures between 4-string and 5-string setups.
-- Upright Mode: Flips the fretboard axis to a vertical mode to simulate looking down at a physical neck.
-- Immersive Focus View: Fullscreen optimization that hides text panels, compressing tools into a translucent floating HUD.
-- Visual Realism: Features dark rosewood textures, metal frets, accurate dot marker layouts, and gauge-scaled strings.
+## ✨ Core Features
 
-### Universal Theory Engine & Strategy Modules
-- Key-Relative Notation Matrix: Shifts between Standard Musical Alphabets and Key-Relative Tonic Solfa dynamically across all 12 keys.
-- Unified Focus Filters: Filter exercises across Naturals, Accidentals, Diatonic Modes, or Chords and Arpeggios.
-- Locked Root Anchor System: Challenges keep your starting root node physically pinned to the neck across three game strategies: Matrix Mapping, Syllable Hunter, and Interval Flashcards.
+### 1. Interactive 24-Fret Neck & Real-Time Audio Engine
+- **Multi-Tuning Support:** Switch seamlessly between **4-String Standard (E-A-D-G)**, **5-String Standard (B-E-A-D-G)**, and **Drop-D (D-A-D-G)** in both **Upright (Vertical)** and **Horizontal (Sideways)** orientations.
+- **Authentic Bass Synthesis:** Powered by **WebAudioFont (`0330` Electric Bass)** with elastic string vibration physics, slide/hammer-on articulation, and **9-pose custom anatomical hand animations**.
+- **Web MIDI Support:** Plug in any USB or Bluetooth MIDI keyboard to play the bass engine with velocity sensitivity and watch notes map onto ergonomic fretboard positions in real time.
 
-### Autopilot Watch & Learn Curriculum
-An automated demonstration mode featuring an animated SVG Vector Hand Rig that slides across the neck using color-coded tracks following strict finger ergonomics. Topics include:
-- Fretboard Foundations (Symmetrical Octaves, 5th Anchors, Spider Dexterity Drills).
-- Chord & Rhythmic Expression (Triads, Diatonic Chord Tones, Slap & Pop, Ghost Notes).
-- Advanced Fusion (Pentatonic Box Breaking, Circle of 5ths, Mixing Pentatonic Fills).
+### 2. Professor BAI (Visual AI Bass Theory Guru)
+- **Resilient Multi-Tier AI Cascade:** Powered by **Google Gemini (`gemini-3.5-flash-lite`)** with automatic failover to **Groq (`openai/gpt-oss-120b`)** and an offline theory fallback.
+- **Automated Shape Boxes & Directional Vector Arrows:** Visualizes scale shapes, pentatonic boxes, harmonic symmetry, and interval connections (`-5/+5` Unisons, `-2/+2`, `-7/+7`, and `-12/+12` Octaves) with interactive layer filters (`All`, `Unisons`, `Octaves`, `Boxes`) and Slow-Mo playback (`0.5x`, `0.75x`, `1.0x`).
+- **Pitch-Verified Accuracy:** Built-in client-side diatonic pitch validation ensures every generated scale run and target drill snaps to true in-key notes and resolves cleanly to the tonic.
+- **Built-In Accompaniment & Solo Sandbox:** Jam alongside synchronized Web Audio electric piano chords and drums with continuous **Loop** mode and **AI Bass Mute** for open-ended soloing.
+
+### 3. Structured Fretboard Mastery Strategies (`A – E`)
+- **Strategy A — Full Scale Matrix Mapping:** Drill complete scale matrices across all 24 frets in Note Name or Tonic Solfa (`Do Re Mi`) notation.
+- **Strategy B — Syllable Note Hunter:** Locate specific scale degrees across the neck.
+- **Strategy C — Interval Vector Flashcard:** Master fretboard interval geometry.
+- **Strategy D — Multi-String Focus:** Isolate any combination of strings (`B E A D G`) in **Fixed Key**, **Naturals Only (No `#/b`)**, or **Natural Chromatic (All 12 Notes)** modes.
+- **Strategy E — Timed Root Hunter:** Beat the clock in single-string or full-neck root-finding rounds with auto-advancing streaks.
+
+### 4. 🎸 Live Rig (Physical Bass Companion Suite)
+- **Harmonic-Locked Bass Tuner:** YIN/Autocorrelation pitch detector with 2nd/3rd harmonic locking for accurate low-B (`30.87 Hz`) and low-E (`41.20 Hz`) tuning via device microphone.
+- **Hands-Free Mic Root Hunter & Fretboard Mirror:** Practice Strategy E hands-free with a physical bass while watching plucked notes light up on the virtual neck.
+- **Instant Jam Backing Band:** One-tap electric piano and drum grooves across Gospel, Funk, Neo-Soul, Reggae, and Rock styles with an **Auto-Progression** generator.
+- **Rhythm & Groove Pocket Meter:** Real-time transient onset analysis measuring whether your playing is dead on the beat, rushing, or laying back.
+
+---
+
+## 🚀 Quick Start
+1. Open the deployed web app on mobile or desktop.
+2. Tap **Initialize Sound** to unlock the Web Audio engine.
+3. Optional: Tap **⚙ API** inside **Professor BAI** to add your free Google Gemini and/or Groq API keys (stored locally in your browser's `localStorage`).
 
 ### Creative Groove Sandbox
 - Native P-Bass Synth: Web Audio API synthesis creating an organic wooden pluck clack completely offline.
