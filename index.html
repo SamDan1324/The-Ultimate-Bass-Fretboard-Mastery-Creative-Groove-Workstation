@@ -1625,10 +1625,15 @@
   .sample-status{margin-top:5px; font-size:10.5px; line-height:1.4; font-weight:600;}
   .sample-status.ok{color:#5be3a0;} .sample-status.warn{color:#ffcf6b;} .sample-status.bad{color:#ff9b9b;}
   .marker.ai-marker.ai-now{
-    background:radial-gradient(circle at 35% 30%, #ffffff, #ffe14d 60%, #d99a1e);
-    color:#2a1c02; border-color:#fff; transform:scale(1.4); z-index:9;
-    box-shadow:0 0 26px rgba(255,255,255,0.95), 0 0 10px rgba(255,225,77,0.9);
+    background:radial-gradient(circle at 35% 30%, #ffffff, #8be9ff 60%, #2aa6c9);
+    color:#04202a; border-color:#fff; transform:scale(1.4); z-index:9;
+    box-shadow:0 0 26px rgba(255,255,255,0.95), 0 0 10px rgba(110,231,255,0.9);
     text-shadow:none;
+  }
+  .marker.ai-marker.ai-now.ai-now-root{
+    background:radial-gradient(circle at 35% 30%, #ffffff, #ffe14d 60%, #d99a1e);
+    color:#2a1c02;
+    box-shadow:0 0 26px rgba(255,255,255,0.95), 0 0 10px rgba(255,225,77,0.9);
   }
 
   /* ---------- Interlocking mode shapes UI ---------- */
@@ -5216,13 +5221,26 @@
       const defs = vEl("defs");
       const mk = vEl("marker", { id:id, viewBox:"0 0 12 12", refX:"11", refY:"6", markerWidth:"13", markerHeight:"13", orient:"auto", markerUnits:"userSpaceOnUse" });
       mk.appendChild(vEl("path", { d:"M0 0 L12 6 L0 12 Z", fill:color, stroke:"#06101d", "stroke-width":"0.8" }));
-      defs.appendChild(mk); g.appendChild(defs);
+      defs.appendChild(mk);
+      // adjacent-string unison shift (1 string apart, 5 frets apart) is drawn double-headed: -5 / +5 frets
+      const biDir = Math.abs(a.to.s - a.from.s) === 1 && Math.abs(a.to.f - a.from.f) === 5;
+      let idStart = null;
+      if(biDir){
+        idStart = id + "s";
+        const mk2 = vEl("marker", { id:idStart, viewBox:"0 0 12 12", refX:"1", refY:"6", markerWidth:"13", markerHeight:"13", orient:"auto", markerUnits:"userSpaceOnUse" });
+        mk2.appendChild(vEl("path", { d:"M12 0 L0 6 L12 12 Z", fill:color, stroke:"#06101d", "stroke-width":"0.8" }));
+        defs.appendChild(mk2);
+      }
+      g.appendChild(defs);
       g.appendChild(vEl("line", { x1:x1, y1:y1, x2:x2, y2:y2, stroke:"#06101d", "stroke-opacity":"0.65", "stroke-width":"8", "stroke-linecap":"round" }));
-      g.appendChild(vEl("line", { x1:x1, y1:y1, x2:x2, y2:y2, stroke:color, "stroke-width":"4.5", "stroke-linecap":"round", "marker-end":"url(#" + id + ")" }));
-      g.appendChild(vEl("circle", { cx:x1, cy:y1, r:"4.5", fill:color, stroke:"#06101d", "stroke-width":"1.2" }));
-      if(a.label){
+      const mainAttrs = { x1:x1, y1:y1, x2:x2, y2:y2, stroke:color, "stroke-width":"4.5", "stroke-linecap":"round", "marker-end":"url(#" + id + ")" };
+      if(biDir) mainAttrs["marker-start"] = "url(#" + idStart + ")";
+      g.appendChild(vEl("line", mainAttrs));
+      if(!biDir) g.appendChild(vEl("circle", { cx:x1, cy:y1, r:"4.5", fill:color, stroke:"#06101d", "stroke-width":"1.2" }));
+      const lbl = biDir ? "-5 / +5 frets" : a.label;
+      if(lbl){
         const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-        baiPill(g, mx - uy*17, my + ux*17, a.label, color);
+        baiPill(g, mx - uy*17, my + ux*17, lbl, color);
       }
       svg.appendChild(g);
     });
@@ -9399,10 +9417,22 @@
   }
 
   // ---------- fretboard control ----------
+  // True pitch check: a dot is only a gold ROOT when its real chromatic pitch class equals the active root key.
+  // Any other scale degree that arrives flagged as "root" is demoted to a normal tone.
+  function aiIsRootPitch(s, f){
+    const sd = activeStrings()[s];
+    if(!sd) return false;
+    const rootPc = keyIndex();
+    return rootPc >= 0 && (((pitchClassAt(sd, f) % 12) + 12) % 12) === (((rootPc % 12) + 12) % 12);
+  }
   function aiSetOverlay(list){
     aiOverlay = {};
     (list || []).forEach(function(p){
-      aiOverlay[p.s + "-" + p.f] = { role:p.role || "tone", pc:pitchClassAt(activeStrings()[p.s], p.f) };
+      const strs = activeStrings();
+      if(!strs[p.s]) return;
+      let role = p.role || "tone";
+      if(role === "root" && !aiIsRootPitch(p.s, p.f)) role = "tone";
+      aiOverlay[p.s + "-" + p.f] = { role:role, pc:pitchClassAt(strs[p.s], p.f), root:aiIsRootPitch(p.s, p.f) };
     });
   }
   function aiClearOverlay(){
@@ -9420,12 +9450,26 @@
       if(el.classList.contains("ai-marker") && el.parentNode) el.parentNode.removeChild(el);
     });
     syncVecToggles();
+    // leftover fingertip ghost ring, hand pose and active-step highlight go too
+    try{
+      AI.tl = null; AI.tlNow = null;
+      handFree.pos = null; handFree.presses = [];
+      LHX.prevTip = null; LHX.placed = false; LHX.nextLink = "";
+      lhxHide();
+      document.querySelectorAll(".hx-target.on, .marker.ai-now, .marker.ai-ghost, .marker.ai-playing").forEach(function(el){
+        el.classList.remove("on", "ai-now", "ai-playing");
+        if(el.classList.contains("ai-marker") && el.parentNode) el.parentNode.removeChild(el);
+      });
+    }catch(e){}
     renderFretboard();
+    try{ updateHandOverlay(); }catch(e){}
+    try{ renderTabRig(); }catch(e){}
     aiSyncDock();
   }
   function buildAiMarkerEl(entry){
     const m = document.createElement("div");
-    m.className = "marker ai-marker" + (entry.role === "root" ? " ai-root" : "") + (entry.role === "ghost" ? " ai-ghost" : "") + (entry.role === "now" ? " ai-now" : "");
+    const isRootPc = entry.pc !== undefined && entry.pc !== null && keyIndex() >= 0 && (((entry.pc % 12) + 12) % 12) === keyIndex();
+    m.className = "marker ai-marker" + (entry.role === "root" && isRootPc ? " ai-root" : "") + (entry.role === "ghost" ? " ai-ghost" : "") + (entry.role === "now" ? (isRootPc ? " ai-now ai-now-root" : " ai-now") : "");
     const label = labelForPitchClass(entry.pc);
     m.textContent = entry.role === "ghost" ? "\u00D7" : label;
     if(label.indexOf(" / ") !== -1) m.classList.add("dual");
@@ -9712,7 +9756,7 @@
         const nk = (s + 1) + "-" + (f - 5);
         if(!have[nk]) return;
         const p = { s:s, f:f }, q = { s:s + 1, f:f - 5 };
-        if(!linked(p, q)) arrows.push({ from:p, to:q, color:"#22d3ee", label:"-5 frets" });
+        if(!linked(p, q)) arrows.push({ from:p, to:q, color:"#22d3ee", label:"-5 / +5 frets" });
       });
       if(arrows.length) spec.boardArrows = arrows.slice(0, 48);
     }catch(e){}
@@ -10248,7 +10292,7 @@
       "VISUAL MAPPING EXTENSIONS: any BOARD_CMD object may include optional arrows:[{from:{s:0,f:3},to:{s:0,f:5},color:\"#38bdf8\",label:\"Shift\"}] and boxes:[{s1:0,f1:3,s2:3,f2:5,color:\"#f59e0b\",label:\"Shape 1\"}]. String indices follow the active tuning. Use arrows for movement and boxes to enclose scale, chord, fingering or genre-specific shapes.",
       "AUTO-DRAW RULE (MANDATORY, applies even when the user never mentions boxes or arrows): whenever you explain a scale, mode, pattern, shape, arpeggio, chord, interval, progression, harmonic idea or any other theory concept that has positions on the neck, the <BOARD_CMD> object MUST contain BOTH a non-empty \"boxes\" array AND a non-empty \"arrows\" array. Boxes enclose the real string-and-fret shape (one box per position, mode shape or chord grip, each with a short label such as \"Root shape\"). Arrows show movement (low root to octave, position shifts, the direction of the line, the root motion between chords of a progression). Use 2 to 6 boxes and 2 to 8 arrows, accurate s and f bounds on the active tuning, distinct colours and labels of at most four words. Drawing them is the default: never wait to be asked, and leave them out only if the user explicitly says not to draw them.",
       "ROOT RESOLUTION RULE (MANDATORY): every scale run, mode run or melodic groove MUST end its FINAL step on the tonic root note named by \"key\" (for G Major the last step is G, for example G on the G string at fret 12, or G on the E string at fret 3), never unresolved on the 5th (D) or any other scale degree. An ascending run climbs to the octave root; a descending run lands on the root. Before you output the <BOARD_CMD>, check that the last step's pitch class equals the key; if it does not, change the last step (or add one) so the phrase resolves home. Every step must also stay in the key and scale you name: the board checks each coordinate against that scale and will move or remove any note that is out of key.",
-      "UNISON SHIFT LABEL RULE (MANDATORY): when you demonstrate the adjacent-string unison formula, keep the arrows focused cleanly on exactly three moves and label them consistently: \"-5 frets\" = the same pitch one string THINNER (+1 string, from {s,f} to {s+1,f-5}), \"+5 frets\" = the same pitch one string THICKER (-1 string, from {s,f} to {s-1,f+5}), and \"+12 frets\" = the same pitch an octave higher on the SAME string (from {s,f} to {s,f+12}). Use these exact label texts, one colour per move, and no other arrow types in that demonstration (no diagonal two-string jumps and no other interval labels). Check every arrow end point with the fret-math table before output (for example A string fret 5 and D string fret 0 are the same D, a -5 frets move to the thinner string).",
+      "UNISON SHIFT LABEL RULE (MANDATORY): when you demonstrate the adjacent-string unison formula, keep the arrows focused cleanly on exactly three moves and label them consistently: (1) the adjacent-string unison pair is ONE bi-directional double-headed arrow between {s,f} and {s+1,f-5} (the same pitch one string THINNER is \"-5 frets\", one string THICKER is \"+5 frets\"), and its label is ALWAYS exactly \"-5 / +5 frets\" (never just \"-5 frets\" or \"+5 frets\"); the board draws arrowheads at both ends so the shift can be traced both ways; (2) the octave-unison pair (one string up and 7 frets back, from {s,f} to {s+1,f-7}) is ONE bi-directional arrow labelled exactly \"-7 / +7 frets\"; (3) \"+12 frets\" = the same pitch an octave higher on the SAME string (from {s,f} to {s,f+12}). Use these exact label texts, one colour per move, and no other arrow types in that demonstration (no diagonal two-string jumps and no other interval labels). Draw a unison arrow for EVERY adjacent-string pair of the target note you light (for example E string fret 8 and A string fret 3 are both C). Check every arrow end point with the fret-math table before output (for example A string fret 5 and D string fret 0 are the same D, linked by one \"-5 / +5 frets\" arrow).",
       "CRITICAL — BOARD COMMAND FORMAT: whenever the user asks to show, play, demonstrate, teach, or generate ANY groove, scale, mode, riff, fill, progression, chord, or exercise, you MUST append a valid JSON command wrapped in <BOARD_CMD>...</BOARD_CMD> tags at the very end of your reply. The board will animate and play it automatically. Example:\n<BOARD_CMD>" + JSON.stringify(exSequence) + "</BOARD_CMD>\nMore examples:\n<BOARD_CMD>" + JSON.stringify(exHighlight) + "</BOARD_CMD>",
       "SEQUENCE ACTION (the primary format): {\"action\":\"sequence\",\"key\":\"C\",\"bpm\":100,\"steps\":[{\"string\":2,\"fret\":3,\"label\":\"Do\",\"finger\":1,\"duration\":500}]}. String index: 0 = LOWEST string (E on 4-string, B on 5-string), 1 = A, 2 = D, 3 = G (4-string). On a 5-string bass: 0 = B, 1 = E, 2 = A, 3 = D, 4 = G. Fret is 0-24. Duration is milliseconds per step. Optional per-step \"tech\":\"slap\" or \"pop\" makes the on-screen right hand slap (thumb) or pop (index). Optional per-step \"link\":\"h\" (hammer-on), \"p\" (pull-off), \"/\" (slide up) or \"\\\\\" (slide down) on a step that stays on the same string animates the left-hand technique with no right-hand pluck. Optional \"action\":\"highlight_notes\" with \"chord_type\" or \"scale_type\" and \"notes\" array of semitone offsets for static chord/scale highlights. Other actions: {\"action\":\"load_lesson\",\"lesson_id\":\"<id>\"}, {\"action\":\"set_notation\",\"mode\":\"solfa\"}, {\"action\":\"set_key\",\"key\":\"D\"}, {\"action\":\"show_mode_boxes\"}, {\"action\":\"show_pivot\"}, {\"action\":\"clear_neck\"}.",
       "BACKING BAND (built-in electric piano + drums): the sequence command also accepts optional fields: \"chords\" = an array of {\"chord\":\"Dm9\",\"beat\":0,\"duration\":4} objects (beat and duration are counted in BEATS from the start of the sequence, 4 beats per bar; chord symbols such as Dm9, G13, Cmaj9, A7b13, Bbm7, F#m7b5, Ebmaj7 are played as warm Rhodes-style comping with a soft pad), \"drums\": true (crisp kick, snare and hi-hat loop with a fill into the last bar) and \"bpm\". The board plays the piano and drums in time with your bassline automatically. Use them whenever the user asks you to jam, solo, play fills or play a groove OVER a chord progression, or asks for piano, keys, drums or a backing band. When you use them: (1) write a rich, professional 24 to 32 step bassline that follows the chords bar by bar (root on the downbeat, then chord tones, 9ths and 13ths, with octave pops using \"tech\":\"pop\", slides using \"link\":\"/\", hammer-ons \"link\":\"h\", pull-offs \"link\":\"p\", ghost notes, and a chromatic fill that approaches the next chord root from a half step); (2) give every step a \"beats\" length (0.25, 0.5, 0.75 or 1) instead of milliseconds so the notes lock to the chord grid, and make the beats of all steps add up to the total length of the chords array; (3) include the matching \"chords\" array and \"drums\":true, set \"key\" to the tonic of the progression and \"bpm\" between 85 and 120. Hammer-ons, pull-offs and slides must stay on the same string as the previous step. Example (ii-V-I-VI in C, 32 steps, 16 beats): <BOARD_CMD>" + JSON.stringify(exBand) + "</BOARD_CMD>",
@@ -10451,7 +10495,7 @@
       "DIAGRAMS: Whenever showing a shape, chord/scale box, shift, interval jump, octave relationship, harmonic symmetry, position connection or note movement, include BOTH boxes and arrows in the same BOARD_CMD object. Arrow schema: {\"from\":{\"s\":0,\"f\":3},\"to\":{\"s\":1,\"f\":5},\"color\":\"#38bdf8\",\"label\":\"shift\"}. Box schema: {\"s1\":0,\"f1\":3,\"s2\":3,\"f2\":5,\"color\":\"#f59e0b\",\"label\":\"shape\"}. Coordinates are active string indices and fret numbers. Use accurate bounds and readable labels; arrows show direction and boxes enclose the actual shape.",
       "AUTO-DRAW RULE (MANDATORY, applies even when the user never mentions boxes or arrows): whenever you explain a scale, mode, pattern, shape, arpeggio, chord, interval, progression, harmonic idea or any other theory concept that has positions on the neck, the <BOARD_CMD> object MUST contain BOTH a non-empty \"boxes\" array AND a non-empty \"arrows\" array. Boxes enclose the real string-and-fret shape (one box per position, mode shape or chord grip, each with a short label such as \"Root shape\"). Arrows show movement (low root to octave, position shifts, the direction of the line, the root motion between chords of a progression). Use 2 to 6 boxes and 2 to 8 arrows, accurate s and f bounds on the active tuning, distinct colours and labels of at most four words. Drawing them is the default: never wait to be asked, and leave them out only if the user explicitly says not to draw them.",
       "ROOT RESOLUTION RULE (MANDATORY): every scale run, mode run or melodic groove MUST end its FINAL step on the tonic root note named by \"key\" (for G Major the last step is G, for example G on the G string at fret 12, or G on the E string at fret 3), never unresolved on the 5th (D) or any other scale degree. An ascending run climbs to the octave root; a descending run lands on the root. Before you output the <BOARD_CMD>, check that the last step's pitch class equals the key; if it does not, change the last step (or add one) so the phrase resolves home. Every step must also stay in the key and scale you name: the board checks each coordinate against that scale and will move or remove any note that is out of key.",
-      "UNISON SHIFT LABEL RULE (MANDATORY): when you demonstrate the adjacent-string unison formula, keep the arrows focused cleanly on exactly three moves and label them consistently: \"-5 frets\" = the same pitch one string THINNER (+1 string, from {s,f} to {s+1,f-5}), \"+5 frets\" = the same pitch one string THICKER (-1 string, from {s,f} to {s-1,f+5}), and \"+12 frets\" = the same pitch an octave higher on the SAME string (from {s,f} to {s,f+12}). Use these exact label texts, one colour per move, and no other arrow types in that demonstration (no diagonal two-string jumps and no other interval labels). Check every arrow end point with the fret-math table before output (for example A string fret 5 and D string fret 0 are the same D, a -5 frets move to the thinner string).",
+      "UNISON SHIFT LABEL RULE (MANDATORY): when you demonstrate the adjacent-string unison formula, keep the arrows focused cleanly on exactly three moves and label them consistently: (1) the adjacent-string unison pair is ONE bi-directional double-headed arrow between {s,f} and {s+1,f-5} (the same pitch one string THINNER is \"-5 frets\", one string THICKER is \"+5 frets\"), and its label is ALWAYS exactly \"-5 / +5 frets\" (never just \"-5 frets\" or \"+5 frets\"); the board draws arrowheads at both ends so the shift can be traced both ways; (2) the octave-unison pair (one string up and 7 frets back, from {s,f} to {s+1,f-7}) is ONE bi-directional arrow labelled exactly \"-7 / +7 frets\"; (3) \"+12 frets\" = the same pitch an octave higher on the SAME string (from {s,f} to {s,f+12}). Use these exact label texts, one colour per move, and no other arrow types in that demonstration (no diagonal two-string jumps and no other interval labels). Draw a unison arrow for EVERY adjacent-string pair of the target note you light (for example E string fret 8 and A string fret 3 are both C). Check every arrow end point with the fret-math table before output (for example A string fret 5 and D string fret 0 are the same D, linked by one \"-5 / +5 frets\" arrow).",
       "GROOVE WRITING: For grooves, riffs, fills, solos and progressions, use the full 16-24-step budget to create a coherent musical phrase. Put roots on strong beats, use chord tones, passing notes, rhythmic variation, tasteful slides, hammer-ons, pull-offs, ghost notes and occasional octave pops. Align bass notes with chord changes and make the final phrase resolve naturally. Do not claim a chord or scale tone that the fret/string coordinates do not produce.",
       "OUTPUT FORMAT: First write the complete teaching explanation in ordinary prose. Then append the complete BOARD_CMD block. JSON must use double-quoted keys/strings, numeric string/fret/beat values, valid arrays and objects, no comments, no trailing commas and no markdown fences inside the tag. Do not place explanation inside the JSON. Close both the JSON and BOARD_CMD tag.",
       "Current active tuning, lowest to highest: " + strings + ". Current master key: " + state.key + ". Be specific, encouraging and musically useful."
