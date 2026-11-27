@@ -1429,6 +1429,10 @@
   .academy-result{margin-top:8px; font-size:12.5px; color:var(--accent-cyan); min-height:18px;}
   .academy-table td.dual-cell{color:var(--accent-brass); font-weight:700; white-space:nowrap;}
   .academy-table td.enh-cell{color:#c8b8ff; white-space:nowrap;}
+  .academy-ear-table td.ear-deg{font-weight:800; color:var(--accent-cyan); white-space:nowrap;}
+  .academy-ear-table td.ear-anchor{color:var(--text-dim);}
+  .academy-ear-table .ear-hear-btn{background:var(--accent-violet); color:#0b0f1a; border:0; border-radius:6px; padding:4px 9px; font-size:11px; font-weight:800; cursor:pointer; white-space:nowrap;}
+  .academy-ear-table .ear-hear-btn:hover{filter:brightness(1.12);}
 
   /* ---------- Professor BAI: drawer + overlay markers ---------- */
   .marker.ai-marker{
@@ -6451,6 +6455,54 @@
         </div>
       </div>`;
   }
+  /* ---- Academy Hub: Solfa Ear-Training Personality Guide ---- */
+  const ACADEMY_EAR_GUIDE = [
+    { name:"Doh", num:"1 \u2014 Root", deg:0, feel:"Home, rest, complete stability; zero tension.", anchor:"<i>\u201CSomewhere Over the Rainbow\u201D</i> (Note 1)" },
+    { name:"Re", num:"2 \u2014 Major 2nd", deg:2, feel:"Gentle forward step, hopeful questioning; wants to step down to <b>Doh</b> or up to <b>Mi</b>.", anchor:"<i>\u201CHappy Birthday\u201D</i> (\u201CHap-py <b>Birth</b>-day\u201D)" },
+    { name:"Mi", num:"3 \u2014 Major 3rd", deg:4, feel:"Warm, bright, joyful calm; defines the major chord.", anchor:"<i>\u201CWhen the Saints Go Marching In\u201D</i> (\u201COh <b>when</b> the...\u201D)" },
+    { name:"Fa", num:"4 \u2014 Perfect 4th", deg:5, feel:"Lifted, expectant, open tension; wants to drop half a step to <b>Mi</b> or climb to <b>Sol</b>.", anchor:"<i>\u201CHere Comes the Bride\u201D</i> (\u201CHere <b>comes</b>...\u201D)" },
+    { name:"Sol", num:"5 \u2014 Perfect 5th", deg:7, feel:"Bold, heroic, rock-solid anchor; launches straight back home to <b>Doh</b>.", anchor:"<i>\u201CStar Wars\u201D</i> Main Theme / <i>\u201CTwinkle Twinkle\u201D</i>" },
+    { name:"La", num:"6 \u2014 Major 6th", deg:9, feel:"Soulful, bittersweet, nostalgic warmth; the relative minor heart in Gospel/R&amp;B.", anchor:"<i>\u201CMy Bonnie Lies Over the Ocean\u201D</i> (\u201CMy <b>Bon</b>-nie...\u201D)" },
+    { name:"Ti", num:"7 \u2014 Major 7th", deg:11, feel:"Sharp magnetic pull, unfinished yearning; begs to resolve half a step up to high <b>Doh</b>.", anchor:"<i>\u201CTake On Me\u201D</i> Chorus" }
+  ];
+  let academyEarTimers = [];
+  function academyEarGuideHtml(){
+    const rows = ACADEMY_EAR_GUIDE.map(function(r, i){
+      return `<tr><td class="ear-deg">${r.name}<br><span style="font-weight:600;color:var(--text-dim);font-size:10.5px;">${r.num}</span></td><td>${r.feel}</td><td class="ear-anchor">${r.anchor}</td><td><button class="ear-hear-btn" data-ear-guide="${i}" title="Plays Doh, then ${r.name}, in key ${state.key}">&#128266; Hear</button></td></tr>`;
+    }).join("");
+    return `
+      <div class="academy-section">
+        <h3>&#128066; Solfa Ear-Training Personality Guide</h3>
+        <div class="academy-tip">Tap <b>&#128266; Hear</b> to play <b>Doh</b> then the degree, in your current Master Song Key (<b>${state.key}</b>), and compare each personality side by side.</div>
+        <div class="academy-table-scroll">
+          <table class="academy-table academy-ear-table">
+            <thead><tr><th>Degree</th><th>Personality</th><th>Song Anchor</th><th>Hear</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div class="academy-result" id="academyEarGuideOut"></div>
+      </div>`;
+  }
+  function bindAcademyEarGuide(container){
+    const out = container.querySelector("#academyEarGuideOut");
+    const say = function(t){ if(out) out.textContent = t || ""; };
+    container.querySelectorAll(".ear-hear-btn").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        const r = ACADEMY_EAR_GUIDE[parseInt(btn.dataset.earGuide, 10)];
+        academyEarTimers.forEach(clearTimeout); academyEarTimers = [];
+        if(!state.audioEnabled || !state.audioInitialized){ say("Sound is off. Turn audio on, then tap Hear again."); return; }
+        if(!BASS_SAMPLES.finger.preset){ try{ bsStart(); }catch(e){} say("The bass samples are still loading. Tap Hear again in a moment."); return; }
+        try{ ensureAudioCtx(); }catch(e){}
+        const open = earOpens()[lowEIdx()];
+        const rootM = open + (((keyIndex() - open) % 12) + 12) % 12;
+        const f1 = 440 * Math.pow(2, (rootM - 69) / 12);
+        const f2 = 440 * Math.pow(2, (rootM + r.deg - 69) / 12);
+        playTone(f1, { dur:0.8, level:1 });
+        academyEarTimers.push(setTimeout(function(){ playTone(f2, { dur:1.2, level:1 }); }, 900));
+        say("Doh \u2192 " + r.name + " in " + state.key + " (" + NOTES[keyIndex()] + " \u2192 " + NOTES[(keyIndex() + r.deg) % 12] + ")");
+      });
+    });
+  }
   function academyVectorHtml(){
     const strings = activeStrings();
     const sA = lowEIdx() + 1;
@@ -6550,6 +6602,7 @@
         ${intervalMatrixHtml}
       </div>
       ${academySolfaHtml()}
+      ${academyEarGuideHtml()}
       ${academyVectorHtml()}
       ${academyModesHtml()}
       <div class="academy-section">
@@ -6562,6 +6615,7 @@
       </div>
     `;
     bindAcademyExtras(container);
+    bindAcademyEarGuide(container);
   }
 
   function isAcademyOpen(){
