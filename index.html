@@ -1778,6 +1778,27 @@
   .rh-track{height:7px; border-radius:5px; background:rgba(255,255,255,0.10); margin-top:8px; overflow:hidden;}
   .rh-fill{height:100%; width:100%; background:#3fe28a; transition:width .1s linear, background .2s ease;}
 
+  /* ---------- Strategy F: Ear Training ---------- */
+  #earTrainCard{display:none;}
+  #earTrainCard.ear-active{display:block;}
+  #earTrainCard.ear-key-mode #earPoolWrap{display:none;}
+  #earModeToggle button,#earPoolToggle button,#earScopeToggle button{font-size:11px; padding:8px 6px;}
+  #earPoolToggle{flex-wrap:wrap;}
+  #earPoolToggle button{flex:1 1 100%;}
+  .ear-bar{display:none; width:100%; box-sizing:border-box; margin-bottom:10px; padding:12px; border:1px solid var(--accent-violet); border-radius:12px; background:rgba(11,15,24,0.55);}
+  .ear-bar.on{display:block;}
+  .ear-top{display:flex; gap:10px; flex-wrap:wrap; align-items:stretch;}
+  .ear-top button{min-height:48px; padding:10px 16px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:1px solid var(--line); background:rgba(36,47,71,0.85); color:var(--text-main);}
+  .ear-top button:hover{filter:brightness(1.2);}
+  .ear-top .ear-replay{flex:1 1 200px; font-size:16px; background:linear-gradient(180deg,var(--accent-cyan),#1fa8a8); color:#04211f; border-color:transparent; box-shadow:0 0 16px rgba(53,208,208,0.35);}
+  .ear-top .ear-replay.playing{filter:saturate(.6) brightness(.85);}
+  .ear-top .ear-mic.live{border-color:var(--state-correct); color:var(--state-correct);}
+  body:not(.ear-key) #earRefBtn{display:none;}
+  .ear-status{margin-top:10px; font-size:12.5px; font-weight:700; color:var(--text-main); min-height:16px;}
+  .ear-stats{margin-top:4px; font-size:12px; font-weight:700; color:var(--accent-brass); font-variant-numeric:tabular-nums;}
+  body:not(.ear-on) .hud-mini-group .ear-only{display:none;}
+  body:not(.ear-key) .hud-mini-group .ear-key-only{display:none;}
+
   /* ---------- Built by SamDan brand badge ---------- */
   .brand-badge{display:flex;align-items:center;gap:11px;padding:7px 16px 7px 10px;border-radius:999px;border:1px solid rgba(224,179,76,.55);
     background:linear-gradient(180deg,#1d2638,#121824);box-shadow:inset 0 0 0 1px rgba(255,255,255,.03),0 0 18px rgba(224,179,76,.12);user-select:none;}
@@ -2028,6 +2049,7 @@
         <option value="interval">Strategy C &mdash; Interval Vector Flashcard</option>
         <option value="laser">Strategy D: String Focus</option>
         <option value="root">Strategy E &mdash; Timed Root Hunter</option>
+        <option value="strategy-f">Strategy F — Ear Training (Solfa &amp; Key Finder)</option>
       </select>
     <div class="strategy-bar-item" id="focusModeCard">
       <div class="label">STRATEGY D SETTINGS — STRING FOCUS</div>
@@ -2086,6 +2108,29 @@
       </div>
       <label class="learn-auto"><input type="checkbox" id="rootAutoNext" checked> Auto-start the next round after grading</label>
       <div class="switch-sub">The target is the Song Key root. Tap every instance of it before the clock hits zero; tap a marker again to remove it. Score = accuracy &times; speed (finishing with time to spare scores higher; wrong taps cost 8 points each).</div>
+    </div>
+    <div class="strategy-bar-item" id="earTrainCard">
+      <div class="label">STRATEGY F SETTINGS — EAR TRAINING</div>
+      <div class="label" style="margin-top:12px;">TRAINING MODE</div>
+      <div class="toggle-row compact" id="earModeToggle">
+        <button type="button" data-ear-mode="solfa" class="active">Relative Solfa &amp; Intervals</button>
+        <button type="button" data-ear-mode="key">Song Key Finder (Alphabets)</button>
+      </div>
+      <div id="earPoolWrap">
+        <div class="label" style="margin-top:12px;">SOLFA POOL</div>
+        <div class="toggle-row compact" id="earPoolToggle">
+          <button type="button" data-ear-pool="1" class="active">Tier 1: Doh, Fa, Sol (Core Anchors)</button>
+          <button type="button" data-ear-pool="2">Tier 2: Full Major Scale (Do&ndash;Ti)</button>
+          <button type="button" data-ear-pool="3">Tier 3: All 12 Chromatic Notes</button>
+        </div>
+      </div>
+      <div class="label" style="margin-top:12px;">STRING TARGET FILTER</div>
+      <div class="toggle-row compact" id="earScopeToggle">
+        <button type="button" data-ear-scope="any" class="active">Any String</button>
+        <button type="button" data-ear-scope="string">Single Target String</button>
+      </div>
+      <label class="learn-auto" style="margin-top:10px;"><input type="checkbox" id="earAutoGrade"> Grade as soon as I answer (mic answers always do)</label>
+      <div class="switch-sub">Relative Solfa plays a Doh&ndash;Sol&ndash;Doh cadence, then a mystery note. Song Key Finder plays one mystery root note in any key (C&ndash;B), with an optional C reference. The neck stays blank while you listen: answer by tapping a fret, playing a MIDI keyboard, or turning on mic answers, then Submit to see the Alphabet name and Solfa syllable.</div>
     </div>
     </div>
     <div class="strategy-bar-item">
@@ -2196,6 +2241,15 @@
         <div class="rh-top"><span class="rh-time" id="rhTime">20.0s</span><span class="rh-round" id="rhRound"></span><span class="rh-info" id="rhInfo"></span></div>
         <div class="rh-track"><div class="rh-fill" id="rhFill"></div></div>
       </div>
+      <div class="ear-bar" id="earBar">
+        <div class="ear-top">
+          <button type="button" class="ear-replay" id="earReplayBtn">&#128266; Replay Sound</button>
+          <button type="button" class="ear-ref" id="earRefBtn">&#128266; Hear C Reference</button>
+          <button type="button" class="ear-mic" id="earMicBtn">&#127908; Mic answers: OFF</button>
+        </div>
+        <div class="ear-status" id="earStatus"></div>
+        <div class="ear-stats" id="earStats"></div>
+      </div>
       <div class="challenge-text" id="challengeText">Generating your first challenge...</div>
       <div class="challenge-actions">
         <button class="btn btn-secondary" id="newChallengeBtn">New Challenge</button>
@@ -2295,6 +2349,8 @@
         <button id="hudNewBtn">New</button>
         <button id="hudSubmitBtn" class="submit">Submit</button>
         <button id="hudClearBtn">Clear</button>
+        <button id="hudReplayBtn" class="primary ear-only" title="Replay the Strategy F sound (audio only)">&#128266; Replay Sound</button>
+        <button id="hudRefBtn" class="ear-only ear-key-only" title="Play a C reference note">&#128266; Hear C</button>
       </div>
       <div class="hud-mini-group" data-for="sandbox">
         <button id="hudGroovePlayBtn" class="primary">Play</button>
@@ -3540,6 +3596,7 @@
      ========================================================= */
   function generateChallenge(){
     rootHuntStop();
+    try{ earCancelTimers(); }catch(e){}
     renderStringFocusChoices();
     if(state.keyMode === "auto"){
       state.key = NOTES[Math.floor(Math.random()*NOTES.length)];
@@ -3558,6 +3615,8 @@
       generateLaserChallenge();
     } else if(strategy === "root"){
       generateRootChallenge();
+    } else if(strategy === "strategy-f"){
+      generateEarChallenge();
     } else {
       generateHunterChallenge();
     }
@@ -3903,6 +3962,368 @@
     if(chip) chip.textContent = (state.graded ? (state.gradeResult.root.timedOut ? "TIME UP" : "Done " + live + "%") : "\u23F1 " + Math.ceil(left) + "s") + " \u00B7 " + k.ok + "/" + k.total + " found";
   }
 
+  /* =========================================================
+     STRATEGY F - EAR TRAINING (Relative Solfa & Intervals / Song Key Finder)
+     BLIND playback: the reference cadence and the mystery note go straight to playTone() (the WebAudioFont 0330 finger-bass
+     sampler) and NOTHING else - no fret dots, gold roots, string vibration, right-hand strike or left-hand pose sprites - until
+     the answer is graded. Answers arrive from a fret tap, a Web MIDI keyboard (cell.click) or the Live Rig microphone engine.
+     ========================================================= */
+  const EAR_POOLS = { 1:[0, 5, 7], 2:[0, 2, 4, 5, 7, 9, 11], 3:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] };
+  const EAR_POOL_NAMES = { 1:"Tier 1: Doh, Fa, Sol (Core Anchors)", 2:"Tier 2: Full Major Scale (Do\u2013Ti)", 3:"Tier 3: All 12 Chromatic Notes" };
+  const EAR = { mode:"solfa", pool:1, scope:"any", auto:false, lastString:-1, lastPc:-1, lastDeg:-1,
+    timers:[], playing:false, muteUntil:0, msg:"", rounds:0, right:0, streak:0, best:0,
+    micOn:false, raf:0, cand:null, hold:0, lastM:0 };
+  try{
+    const o = JSON.parse(localStorage.getItem("bassEarTrain_v1") || "null");
+    if(o){
+      if(o.mode === "solfa" || o.mode === "key") EAR.mode = o.mode;
+      if(o.pool === 1 || o.pool === 2 || o.pool === 3) EAR.pool = o.pool;
+      if(o.scope === "any" || o.scope === "string") EAR.scope = o.scope;
+      if(typeof o.auto === "boolean") EAR.auto = o.auto;
+      ["rounds", "right", "streak", "best"].forEach(function(k){ if(isFinite(o[k]) && o[k] >= 0) EAR[k] = Math.round(o[k]); });
+    }
+  }catch(e){}
+  function earSave(){
+    try{ localStorage.setItem("bassEarTrain_v1", JSON.stringify({ mode:EAR.mode, pool:EAR.pool, scope:EAR.scope, auto:EAR.auto,
+      rounds:EAR.rounds, right:EAR.right, streak:EAR.streak, best:EAR.best })); }catch(e){}
+  }
+  function earEl(id){ return document.getElementById(id); }
+  function earActive(){ return state.strategy === "strategy-f" && state.workstationMode === "training"; }
+  function earIsChallenge(){ return !!(state.challenge && state.challenge.type === "ear"); }
+  function earHz(m){ return 440 * Math.pow(2, (m - 69) / 12); }
+  function earOpens(){ return activeStrings().map(function(t){ return Math.round(69 + 12 * Math.log2(t.freq / 440)); }); }
+  function earPick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+  function earSolfa(deg){ return deg === 0 ? "Doh" : SOLFA[deg]; }
+  function earLetter(pc){ return NOTES[pc]; }
+  function earLetterFull(pc){ return FLAT_NAMES[pc] === NOTES[pc] ? NOTES[pc] : NOTES[pc] + "/" + FLAT_NAMES[pc]; }
+  function earAccuracy(){ return EAR.rounds ? Math.round(EAR.right / EAR.rounds * 100) : null; }
+  function earSay(msg){ EAR.msg = msg || ""; earPaint(); try{ updateHudBanner(); }catch(e){} }
+
+  // --- UI sync: settings panel, blind-mode bar, Fullscreen HUD buttons, body flags ---
+  function earPaint(){
+    const act = earActive(), on = act && earIsChallenge();
+    document.body.classList.toggle("ear-on", !!act);
+    document.body.classList.toggle("ear-key", !!(act && EAR.mode === "key"));
+    const bar = earEl("earBar"); if(bar) bar.classList.toggle("on", !!on);
+    const card = earEl("earTrainCard");
+    if(card){
+      card.classList.toggle("ear-key-mode", EAR.mode === "key");
+      [["earModeToggle", "earMode", EAR.mode], ["earPoolToggle", "earPool", String(EAR.pool)], ["earScopeToggle", "earScope", EAR.scope]].forEach(function(r){
+        const g = earEl(r[0]); if(!g) return;
+        Array.prototype.forEach.call(g.querySelectorAll("button"), function(b){ b.classList.toggle("active", b.dataset[r[1]] === r[2]); });
+      });
+      const ag = earEl("earAutoGrade"); if(ag) ag.checked = EAR.auto;
+    }
+    const sub = earEl("submitBtn"); if(sub) sub.textContent = on ? "Submit Answer" : "Submit Canvas";
+    const rt = EAR.playing ? "\uD83D\uDD0A Playing\u2026" : "\uD83D\uDD0A Replay Sound";
+    [earEl("earReplayBtn"), earEl("hudReplayBtn")].forEach(function(b){ if(b){ b.textContent = rt; b.classList.toggle("playing", !!EAR.playing); } });
+    const mb = earEl("earMicBtn");
+    if(mb){ mb.textContent = EAR.micOn ? "\uD83C\uDFA4 Mic answers: ON" : "\uD83C\uDFA4 Mic answers: OFF"; mb.classList.toggle("live", !!EAR.micOn); }
+    const st = earEl("earStatus");
+    if(st) st.textContent = on ? (EAR.msg || (state.graded ? "" : "Listen first \u2014 nothing is shown on the neck until you submit.")) : "";
+    const ss = earEl("earStats");
+    if(ss){
+      const acc = earAccuracy();
+      ss.textContent = on ? ("Strategy F streak: " + EAR.streak + "  |  Best: " + EAR.best + "  |  Accuracy: " + (acc === null ? "--" : acc + "% (" + EAR.right + "/" + EAR.rounds + ")")) : "";
+    }
+  }
+
+  // --- blind audio: WebAudioFont bass only, no visuals of any kind ---
+  function earCancelTimers(){
+    EAR.timers.forEach(clearTimeout); EAR.timers = [];
+    if(EAR.playing){ EAR.playing = false; try{ earPaint(); }catch(e){} }
+  }
+  function earPlaySequence(seq){
+    earCancelTimers();
+    if(!state.audioEnabled || !state.audioInitialized){ earSay("Sound is off. Turn audio on, then tap Replay Sound."); return false; }
+    if(!BASS_SAMPLES.finger.preset){
+      try{ bsStart(); }catch(e){}
+      earSay("The bass samples are still loading. Tap Replay Sound in a moment."); return false;
+    }
+    try{ ensureAudioCtx(); }catch(e){}
+    let end = 0;
+    EAR.playing = true;
+    seq.forEach(function(n){
+      EAR.timers.push(setTimeout(function(){ playTone(earHz(n.m), { dur:n.dur, level:1 }); }, n.at));   // sound only
+      end = Math.max(end, n.at + n.dur * 1000);
+    });
+    EAR.muteUntil = performance.now() + end + 700;                         // the mic never hears the replay
+    EAR.timers.push(setTimeout(function(){ EAR.playing = false; earPaint(); try{ updateHudBanner(); }catch(e){} }, end + 150));
+    earPaint();
+    return true;
+  }
+  function earReplay(){
+    const c = state.challenge;
+    if(!earActive() || !c || c.type !== "ear") return;
+    let seq;
+    if(c.mode === "key") seq = [{ m:c.targetMidi, at:0, dur:1.8 }];
+    else seq = [{ m:c.anchorMidi, at:0, dur:0.5 }, { m:c.anchorMidi + 7, at:650, dur:0.5 }, { m:c.anchorMidi, at:1300, dur:0.7 }, { m:c.targetMidi, at:2500, dur:1.5 }];
+    if(earPlaySequence(seq)) earSay(c.mode === "key" ? "Listening\u2026 find the key note by ear." : "Listening\u2026 Doh \u2013 Sol \u2013 Doh, then the mystery note.");
+  }
+  function earPlayRef(){
+    const c = state.challenge;
+    if(!earActive() || !c || c.type !== "ear" || c.mode !== "key") return;
+    if(earPlaySequence([{ m:c.refMidi, at:0, dur:1.4 }])) earSay("C reference. Compare the mystery key note to it.");
+  }
+
+  // --- challenge generation ---
+  function generateEarChallenge(){
+    const strings = activeStrings(), opens = earOpens(), mode = EAR.mode;
+    let sIdx = -1;
+    if(EAR.scope === "string"){
+      const all = strings.map(function(_, i){ return i; });
+      const pool = all.filter(function(i){ return i !== EAR.lastString; });
+      sIdx = earPick(pool.length ? pool : all);
+      EAR.lastString = sIdx;
+    }
+    const lo = sIdx >= 0 ? opens[sIdx] : Math.min.apply(null, opens);
+    const hi = (sIdx >= 0 ? opens[sIdx] : Math.max.apply(null, opens)) + FRET_COUNT;
+    let keyPc, deg, pc, anchorMidi = null, targetMidi, refMidi = null, m;
+
+    if(mode === "key"){
+      const pcs = []; for(m = 0; m < 12; m++) if(m !== EAR.lastPc) pcs.push(m);
+      pc = earPick(pcs); keyPc = pc; deg = 0;
+      let cands = [];
+      for(m = Math.max(lo, 28); m <= Math.min(hi, 62); m++) if(m % 12 === pc) cands.push(m);
+      if(!cands.length) for(m = lo; m <= hi; m++) if(m % 12 === pc) cands.push(m);
+      targetMidi = earPick(cands);
+      for(m = targetMidi - 6; m <= targetMidi + 5; m++) if(m % 12 === 0) refMidi = m;     // the C nearest the mystery note
+      while(refMidi < 33) refMidi += 12;
+      EAR.lastPc = pc;
+    } else {
+      keyPc = keyIndex();
+      const poolDegs = EAR_POOLS[EAR.pool] || EAR_POOLS[1];
+      let degs = poolDegs.filter(function(d){ return d !== EAR.lastDeg; });
+      if(!degs.length) degs = poolDegs;
+      deg = earPick(degs); pc = (keyPc + deg) % 12;
+      let pairs = [];
+      const addPairs = function(from, to){
+        for(let D = from; D <= to; D++){
+          if(D % 12 !== keyPc) continue;
+          (deg === 0 ? [D, D + 12] : [D + deg]).forEach(function(T){ if(T >= lo && T <= hi && T <= 64) pairs.push([D, T]); });
+        }
+      };
+      addPairs(28, 52);
+      if(!pairs.length) addPairs(Math.max(21, lo - 12), hi);
+      const pref = pairs.filter(function(p){ return p[0] <= 47; });
+      const pick = earPick(pref.length ? pref : pairs);
+      anchorMidi = pick[0]; targetMidi = pick[1];
+      EAR.lastDeg = deg;
+    }
+
+    const indices = sIdx >= 0 ? [sIdx] : strings.map(function(_, i){ return i; });
+    const correctSet = new Set(), revealSet = new Set();
+    strings.forEach(function(sd, si){
+      for(let f = 0; f <= FRET_COUNT; f++){
+        if(pitchClassAt(sd, f) !== pc) continue;
+        revealSet.add(si + "-" + f);
+        if(indices.indexOf(si) >= 0) correctSet.add(si + "-" + f);
+      }
+    });
+    state.challenge = {
+      type:"ear", mode:mode, pool:EAR.pool, deg:deg, pitchClass:pc, keyPc:keyPc,
+      scope:sIdx >= 0 ? "string" : "any", stringIndex:sIdx, stringIndices:indices, stringName:sIdx >= 0 ? strings[sIdx].name : "Any",
+      anchorMidi:anchorMidi, targetMidi:targetMidi, refMidi:refMidi, correctSet:correctSet, revealSet:revealSet
+    };
+    state.markers = {};
+    state.graded = false;
+    state.gradeResult = null;
+    handFree.pos = null; handFree.presses = [];              // no leftover hand pose from the previous round
+    EAR.msg = "";
+    earCancelTimers();
+    EAR.timers.push(setTimeout(function(){ earAutoPlay(0); }, 450));
+  }
+  // plays the new question automatically; waits (up to ~7 s) for the bass samples if they are still streaming in
+  function earAutoPlay(tries){
+    if(!earActive() || !earIsChallenge() || state.graded) return;
+    if(BASS_SAMPLES.finger.preset || tries >= 6 || !state.audioInitialized || !state.audioEnabled){ earReplay(); return; }
+    if(!tries){ earSay("Loading the bass samples\u2026"); try{ bsStart(); }catch(e){} }
+    EAR.timers.push(setTimeout(function(){ earAutoPlay(tries + 1); }, 1200));
+  }
+
+  function earChallengeText(el){
+    const c = state.challenge, solfa = c.mode === "solfa";
+    el.innerHTML =
+      '<span class="tag">Strategy:</span> Strategy F &mdash; Ear Training' +
+      ' &nbsp;|&nbsp; <span class="tag">Mode:</span> ' + (solfa ? "Relative Solfa &amp; Intervals" : "Song Key Finder (Alphabets)") +
+      (solfa ? ' &nbsp;|&nbsp; <span class="tag">Doh =</span> <span class="target">' + earLetter(c.keyPc) + '</span> &nbsp;|&nbsp; <span class="tag">Pool:</span> ' + EAR_POOL_NAMES[c.pool] : "") +
+      ' &nbsp;|&nbsp; <span class="tag">Strings:</span> ' + (c.scope === "string" ? 'answer on the <span class="target">' + c.stringName + ' string</span>' : "Any string") +
+      ' &nbsp;|&nbsp; <span class="tag">Objective:</span> ' + (solfa
+        ? "Listen to the Doh\u2013Sol\u2013Doh cadence, then find the mystery note. Tap it on the neck (or play it on MIDI / mic), then Submit."
+        : "Listen to the mystery key note and find it on the neck. Use Hear C Reference to orient yourself, then Submit.");
+  }
+
+  // --- answering: fret tap (MIDI keyboards arrive here through cell.click) ---
+  function earTap(s, f){
+    const c = state.challenge, sDef = activeStrings()[s];
+    if(!sDef) return;
+    if(state.graded){                                         // after the reveal the neck is free to explore
+      playTone(freqAt(sDef, f)); handFreeShow(s, f); updateHandOverlay();
+      return;
+    }
+    if(c.scope === "string" && s !== c.stringIndex){ earSay("This round: answer on the " + c.stringName + " string."); return; }
+    playTone(freqAt(sDef, f));                                // sound only: no hand pose or string animation before grading
+    earSetGuess(s, f);
+    renderFretboard();
+    earSay(EAR.auto ? "" : "Answer placed. Tap Submit to grade it (tap it again to remove).");
+    if(EAR.auto && earHasGuess()) gradeEar();
+  }
+  function earGuessKey(){ return Object.keys(state.markers).filter(function(k){ return state.markers[k] && state.markers[k].guess; })[0] || null; }
+  function earHasGuess(){ return !!earGuessKey(); }
+  function earSetGuess(s, f){
+    const key = s + "-" + f, had = earGuessKey() === key;
+    state.markers = {};
+    if(!had) state.markers[key] = { label:"\u25CF", pitchClass:pitchClassAt(activeStrings()[s], f), guess:true };
+  }
+
+  // --- grading + reveal ---
+  function earRevealLabel(pc){
+    const c = state.challenge;
+    return earSolfa((pc - c.keyPc + 12) % 12) + " / " + earLetter(pc);
+  }
+  function gradeEar(){
+    const c = state.challenge;
+    if(!c || c.type !== "ear" || state.graded) return;
+    const gk = earGuessKey();
+    if(!gk){ earSay("Give an answer first: tap the neck, or play the note on MIDI / your bass."); return; }
+    earCancelTimers();
+    const gp = gk.split("-").map(Number), strings = activeStrings();
+    const gpc = pitchClassAt(strings[gp[0]], gp[1]);
+    const ok = gpc === c.pitchClass;
+    const markers = {}, correct = new Set(), wrong = new Set();
+    c.revealSet.forEach(function(k){ markers[k] = { label:earRevealLabel(c.pitchClass), pitchClass:c.pitchClass }; correct.add(k); });
+    if(!ok){ markers[gk] = { label:earRevealLabel(gpc), pitchClass:gpc }; wrong.add(gk); }
+    state.markers = markers;
+    state.graded = true;
+    state.gradeResult = { correct:correct, wrong:wrong, missed:new Set(), score:ok ? 100 : 0, perfect:ok, unboxPenaltyApplied:false,
+      foundAll:true, allAccurate:ok, ear:{ ok:ok, guessPc:gpc, guessKey:gk } };
+    EAR.rounds++;
+    if(ok){ EAR.right++; EAR.streak++; if(EAR.streak > EAR.best) EAR.best = EAR.streak; } else EAR.streak = 0;
+    earSave();
+    let near = null, nd = 1e9;                                // the visual reveal: hand pose + string vibration at the nearest true position
+    c.correctSet.forEach(function(k){
+      const q = k.split("-").map(Number), d = Math.abs(q[1] - gp[1]) + 2 * Math.abs(q[0] - gp[0]);
+      if(d < nd){ nd = d; near = q; }
+    });
+    if(near){ try{ handFreeShow(near[0], near[1]); }catch(e){} }
+    EAR.msg = "";
+    renderFretboard();
+    showFeedback();
+    updatePersistence(ok, ok ? 100 : 0);
+    earPaint();
+  }
+  function earFeedbackMsg(r, el){
+    const c = state.challenge, e = r.ear;
+    const tl = earLetterFull(c.pitchClass), tl1 = earLetter(c.pitchClass), ts = earSolfa(c.deg);
+    const gl = earLetterFull(e.guessPc), gs = earSolfa((e.guessPc - c.keyPc + 12) % 12);
+    el.classList.add(e.ok ? "good" : "bad");
+    let msg = e.ok ? "Correct! " : "Not quite. ";
+    if(c.mode === "key"){
+      msg += "Target was " + tl + " (Doh = " + tl1 + "). Relative to the C reference it is " + earSolfa(c.pitchClass % 12) + ".";
+    } else {
+      msg += "Target was " + ts + " (Note: " + tl + ")" + (c.deg === 0 ? " \u2014 the Doh (" + earLetter(c.keyPc) + ") itself." : " \u2014 a " + INTERVAL_NAMES[c.deg] + " above Doh (" + earLetter(c.keyPc) + ").");
+    }
+    if(!e.ok) msg += " You played " + (c.mode === "key" ? gl : gs + " (Note: " + gl + ")") + ".";
+    msg += " Every " + tl1 + " on the neck is lit green.";
+    msg += e.ok ? " Strategy F streak: " + EAR.streak + "." : " Streak reset (best " + EAR.best + ").";
+    return msg;
+  }
+  function earBannerHtml(){
+    const c = state.challenge, r = state.gradeResult;
+    let h = "<b>Strategy F</b> &middot; Ear Training &middot; " + (c.mode === "key" ? "Song Key Finder" : "Relative Solfa (Doh = " + earLetter(c.keyPc) + ")");
+    if(c.scope === "string") h += " &middot; " + c.stringName + " string";
+    h += " &middot; Streak " + EAR.streak;
+    if(state.graded && r && r.ear){
+      h += " &middot; " + (r.ear.ok ? "Correct!" : "Not quite") + " Target: " + (c.mode === "key" ? earLetterFull(c.pitchClass) : earSolfa(c.deg) + " (" + earLetterFull(c.pitchClass) + ")");
+    } else if(EAR.msg){
+      h += " &middot; " + EAR.msg;
+    }
+    return h;
+  }
+
+  // --- microphone answers: reuses the Live Rig microphone + pitch engine, works with the Live Rig closed ---
+  function earMicStart(){
+    if(EAR.micOn) return;
+    LR.earAllow = true;
+    let p; try{ p = lrMicOn(); }catch(e){ p = Promise.resolve(false); }
+    p.then(function(ok){
+      LR.earAllow = false;
+      if(ok){
+        EAR.micOn = true; EAR.cand = null; EAR.hold = 0;
+        if(!EAR.raf) EAR.raf = requestAnimationFrame(earMicLoop);
+        earSay("Mic live: play the answer on your bass. It grades itself.");
+      } else earSay("Microphone unavailable. Allow mic access (HTTPS or localhost), or answer on the neck instead.");
+    });
+  }
+  function earMicStop(){
+    EAR.micOn = false; EAR.cand = null; EAR.hold = 0;
+    if(!LR.open) lrMicOff();
+    earSay("");
+  }
+  function earMicLoop(){
+    if(!EAR.micOn){ EAR.raf = 0; return; }
+    EAR.raf = requestAnimationFrame(earMicLoop);
+    if(LR.open) return;                                       // the Live Rig loop owns the mic while it is open
+    const m = LR.mic;
+    if(!m){ EAR.micOn = false; EAR.raf = 0; earSay("Mic turned off."); return; }
+    const ctx = audioCtx; if(!ctx) return;
+    const now = ctx.currentTime;
+    if(now - m.tp < 0.04) return;
+    m.tp = now;
+    const p = lrPitch(m, now);
+    if(p){ LR.pitch = p; m.lastP = now; } else if(now - m.lastP > 0.5){ LR.pitch = null; m.hist.length = 0; }
+    earMicPitch(p, now);
+  }
+  function earMicPitch(p, now){
+    const c = state.challenge;
+    if(!EAR.micOn || !earActive() || !c || c.type !== "ear" || state.graded || EAR.playing || performance.now() < EAR.muteUntil){ EAR.cand = null; EAR.hold = 0; return; }
+    if(!p || p.n < 3){ if(now - EAR.lastM > 0.12){ EAR.cand = null; EAR.hold = 0; } return; }
+    const r = Math.round(p.midi), cents = (p.midi - r) * 100;
+    if(Math.abs(cents) > 40){ EAR.cand = null; EAR.hold = 0; return; }
+    EAR.lastM = now;
+    if(EAR.cand !== r){ EAR.cand = r; EAR.hold = now; return; }
+    if(now - EAR.hold >= 0.3){ EAR.cand = null; EAR.hold = 0; earMicAnswer(r); }
+  }
+  function earMicAnswer(midi){
+    const c = state.challenge; if(!c || state.graded) return;
+    const pc = ((midi % 12) + 12) % 12, strings = activeStrings(), opens = earOpens();
+    let best = null, bd = 1e9;
+    c.stringIndices.forEach(function(si){
+      for(let f = 0; f <= FRET_COUNT; f++){
+        if(pitchClassAt(strings[si], f) !== pc) continue;
+        const d = (opens[si] + f === midi ? 0 : 100) + f;     // prefer the exact pitch you played, else the lowest fret
+        if(d < bd){ bd = d; best = { s:si, f:f }; }
+      }
+    });
+    if(!best){ earSay("That note is not available on the " + c.stringName + " string."); return; }
+    state.markers = {};
+    state.markers[best.s + "-" + best.f] = { label:"\u25CF", pitchClass:pc, guess:true };
+    gradeEar();                                               // hands are on the bass: mic answers always grade themselves
+  }
+
+  function earWire(){
+    const bindGroup = function(id, attr, apply){
+      const g = earEl(id); if(!g) return;
+      g.addEventListener("click", function(e){
+        const b = e.target.closest("button[data-" + attr + "]"); if(!b) return;
+        apply(b.dataset[attr.replace(/-([a-z])/g, function(_, ch){ return ch.toUpperCase(); })]);
+        earSave(); earPaint();
+        if(earActive()) generateChallenge();
+      });
+    };
+    bindGroup("earModeToggle", "ear-mode", function(v){ EAR.mode = v === "key" ? "key" : "solfa"; });
+    bindGroup("earPoolToggle", "ear-pool", function(v){ EAR.pool = [1, 2, 3].indexOf(+v) >= 0 ? +v : 1; });
+    bindGroup("earScopeToggle", "ear-scope", function(v){ EAR.scope = v === "string" ? "string" : "any"; });
+    const ag = earEl("earAutoGrade");
+    if(ag) ag.addEventListener("change", function(){ EAR.auto = ag.checked; earSave(); });
+    [["earReplayBtn", earReplay], ["hudReplayBtn", earReplay], ["earRefBtn", earPlayRef], ["hudRefBtn", earPlayRef]].forEach(function(r){
+      const b = earEl(r[0]); if(b) b.addEventListener("click", function(e){ e.stopPropagation(); r[1](); });
+    });
+    const mb = earEl("earMicBtn");
+    if(mb) mb.addEventListener("click", function(){ if(EAR.micOn) earMicStop(); else earMicStart(); });
+    earPaint();
+  }
+
   // --- Strategy D: String Focus ---
   function generateLaserChallenge(){
     const strings = activeStrings();
@@ -3944,6 +4365,7 @@
     if(c.type === "laser") return c.label + " on " + c.stringName + (c.chromatic ? " (chromatic)" : " string(s)");
     if(c.type === "root") return c.letter + " \u2014 " + (c.scope === "any" ? "Any String" : c.stringName + " string");
     if(c.type === "interval") return c.intervalName;
+    if(c.type === "ear") return c.mode === "key" ? "Key " + earLetter(c.pitchClass) : earSolfa(c.deg) + " (" + earLetter(c.pitchClass) + ")";
     return "-";
   }
 
@@ -3953,6 +4375,7 @@
     if(s === "interval") return "Interval Flashcard";
     if(s === "laser") return "String Focus";
     if(s === "root") return "Timed Root Hunter";
+    if(s === "strategy-f") return "Ear Training";
     return s;
   }
 
@@ -3965,7 +4388,9 @@
     if(!c) return;
     const el = document.getElementById("challengeText");
     const focusTag = ` &nbsp;|&nbsp; <span class="tag">Focus:</span> ${focusModeName(state.focusMode)}`;
-    if(c.type === "root"){
+    if(c.type === "ear"){
+      earChallengeText(el);
+    } else if(c.type === "root"){
       el.innerHTML =
         `<span class="tag">Strategy:</span> Strategy E &mdash; Timed Root Hunter` +
         ` &nbsp;|&nbsp; <span class="tag">Song Key:</span> ${state.key}${state.keyMode==="auto" ? " (Auto)":""} &mdash; Find every <span class="target">${rootWhat(c)}</span>` +
@@ -5621,6 +6046,12 @@
       try{ rhxStrike({ s:parseInt(lc.dataset.string,10), art:"" }); }catch(e){}
       return;
     }
+    if(state.challenge && state.challenge.type === "ear" && state.strategy === "strategy-f"){
+      e.stopPropagation();
+      closeDropdown();
+      earTap(parseInt(e.currentTarget.dataset.string, 10), parseInt(e.currentTarget.dataset.fret, 10));
+      return;
+    }
     if(state.graded) return;
     e.stopPropagation();
     closeDropdown();
@@ -5877,6 +6308,7 @@
     if(!c) return;
     if(c.type === "laser") gradeLaser(c);
     else if(c.type === "root") gradeRoot(false);
+    else if(c.type === "ear") gradeEar();
     else if(c.type === "hunter") gradeHunter(c);
     else if(c.type === "matrix") gradeMatrix(c);
     else if(c.type === "interval") gradeInterval(c);
@@ -5891,6 +6323,8 @@
     let msg = "";
     if(r.root){
       msg = rootFeedbackMsg(r, el);
+    } else if(r.ear){
+      msg = earFeedbackMsg(r, el);
     } else if(r.perfect){
       msg = `Flawless mapping. Score: ${r.score}%. Every required position was located and labeled correctly.`;
       el.classList.add("good");
@@ -8951,6 +9385,8 @@
       strategyDSettings.classList.toggle("strategy-d-active", sv === "laser");
       const rootCard = document.getElementById("rootHuntCard");
       if(rootCard) rootCard.classList.toggle("root-active", sv === "root");
+      const earCard = document.getElementById("earTrainCard");
+      if(earCard) earCard.classList.toggle("ear-active", sv === "strategy-f");
     };
     syncStrategyDSettingsVisibility();
     document.getElementById("strategySelect").addEventListener("change", (e)=>{
@@ -8982,6 +9418,8 @@
         auto.addEventListener("change", function(){ ROOT.autoNext = auto.checked; rootSave(); });
       }
     })();
+
+    earWire();   // Strategy F settings, replay / reference / mic buttons
 
     document.getElementById("workstationModeToggle").addEventListener("click", (e)=>{
       const btn = e.target.closest("button[data-wsmode]");
@@ -9051,6 +9489,7 @@
     document.getElementById("newChallengeBtn").addEventListener("click", generateChallenge);
     document.getElementById("submitBtn").addEventListener("click", gradeCanvas);
     document.getElementById("clearCanvasBtn").addEventListener("click", ()=>{
+      if(state.challenge && state.challenge.type === "ear" && state.strategy === "strategy-f" && state.graded) return;   // a graded Strategy F round is final
       const preserved = {};
       Object.keys(state.markers).forEach(k=>{
         if(state.markers[k].locked) preserved[k] = state.markers[k];
@@ -9398,16 +9837,20 @@
     g.setAttribute("aria-expanded", "false");
   }
 
-  const STRATEGY_NAMES = { hunter:"Syllable Note Hunter", matrix:"Full Scale Matrix Mapping", interval:"Interval Vector Flashcard", laser:"String Focus", root:"Timed Root Hunter" };
+  const STRATEGY_NAMES = { hunter:"Syllable Note Hunter", matrix:"Full Scale Matrix Mapping", interval:"Interval Vector Flashcard", laser:"String Focus", root:"Timed Root Hunter", "strategy-f":"Ear Training (Solfa & Key Finder)" };
   const GENRE_NAMES = { funk:"Funk Groove", jazz:"Walking Jazz", boombap:"Boom-Bap Hip Hop", highlife:"Nigerian Highlife", gospel:"Gospel Shout", afropop:"Afrobeats Pocket" };
   function updateHudBanner(){
     const el = document.getElementById("hudBanner");
     if(!el) return;
+    try{ earPaint(); }catch(e){}
     let t;
     if(state.workstationMode === "learn" && state.learn.meta){
       t = state.learn.meta.title;
     } else if(state.workstationMode === "sandbox"){
       t = "Groove Sandbox \u2014 " + (GENRE_NAMES[state.groove.genre] || "Groove") + " at " + state.groove.bpm + " BPM";
+    } else if(state.strategy === "strategy-f" && earIsChallenge()){
+      el.innerHTML = earBannerHtml();
+      return;
     } else if(state.strategy === "root" && rootIsChallenge()){
       const rc = state.challenge;
       el.innerHTML = "<b>Strategy E</b> &middot; <span id=\"hudRootChip\"></span> &middot; Song Key: " + state.key + " &mdash; Find every " + rootWhat(rc) + " &middot; " + (rc.scope === "any" ? "Any String" : rc.stringName + " string");
@@ -9460,7 +9903,7 @@
     if(!md || !md.getUserMedia){ lrSay("Microphone access isn't available here. Open the file over HTTPS or localhost and try again."); return Promise.resolve(false); }
     LR.micPending = md.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1 } }).then(function(stream){
       LR.micPending = null;
-      if(!LR.open){ stream.getTracks().forEach(function(t){ t.stop(); }); return false; }
+      if(!LR.open && !LR.earAllow){ stream.getTracks().forEach(function(t){ t.stop(); }); return false; }
       const ctx = ensureAudioCtx();
       const src = ctx.createMediaStreamSource(stream);
       const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 24;
@@ -10019,7 +10462,7 @@
   function midiOff(n){ delete MIDI.held[n]; midiPaint(); }
   function midiOn(note, vel, ts){
     try{ ensureAudioCtx(); if(!BASS_SAMPLES.finger.preset) bsStart(); }catch(err){}
-    const opens = midiOpen(), p = midiFold(note, opens), pos = midiPos(p, opens), lvl = Math.max(0.12, Math.pow(vel / 127, 0.8));
+    let opens = midiOpen(), p = midiFold(note, opens), pos = midiPos(p, opens), lvl = Math.max(0.12, Math.pow(vel / 127, 0.8));
     MIDI.held[note] = vel;
     if(LR.open){
       lrPlay(lrHz(p), { level:lvl }); midiPaint();
@@ -10031,6 +10474,11 @@
       return;
     }
     if(!pos.length) return;
+    const ec = state.challenge;
+    if(ec && ec.type === "ear" && state.strategy === "strategy-f" && state.workstationMode === "training" && ec.scope === "string" && !state.graded){
+      pos = pos.filter(function(q){ return q.s === ec.stringIndex; });     // Single Target String: the MIDI note lands on that string
+      if(!pos.length){ playTone(lrHz(p), { level:lvl }); midiPaint(); earSay("That note is not on the " + ec.stringName + " string."); return; }
+    }
     const l = MIDI.last || { s:0, f:0 };
     const free = pos.filter(function(q){ return !state.markers[q.s + "-" + q.f]; });
     const pool = (state.challenge && state.challenge.type === "root" && free.length) ? free : pos;
